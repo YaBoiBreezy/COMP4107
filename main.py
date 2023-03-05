@@ -45,10 +45,10 @@ def generateData(backgrounds,sprites,numInstances,minSpriteCount,maxSpriteCount,
    if rotation:
     tempSprite=tempSprite.rotate(random.randint(0,360), expand=1) #true makes it resize to fit new image. Uses nearest neighbor to keep pixel colors
    if sizing:
-    newSize=random.randint(32,512)
-    tempSprite=tempSprite.template((newSize,newSize),PIL.Image.NEAREST)
+    newSize=random.randint(64,512)
+    tempSprite.thumbnail((newSize,newSize),PIL.Image.NEAREST)
    if flipping and random.randint(0,1)==0:
-    tempSprite.transpose(FLIP_LEFT_RIGHT)
+    tempSprite=tempSprite.transpose(Image.FLIP_LEFT_RIGHT)
    tempSprite.convert("RGBA")
    spriteWidth,spriteHeight=tempSprite.size
    spriteX=random.randint(0,1024-spriteWidth)
@@ -63,11 +63,11 @@ def generateData(backgrounds,sprites,numInstances,minSpriteCount,maxSpriteCount,
 #takes the locations of 2 folders of images, returns 2 numpy arrays of those images
 def readData():
  backgrounds = []
- for x in range(1,81):
+ for x in range(1,80):
   backgrounds.append(Image.open("./backgrounds/background"+str(x)+".jpg"))
  sprites = []
  for x in range(1,101):
-  sprites.append(Image.open("./sprites/sprite"+str(x)+".jpg"))
+  sprites.append(Image.open("./sprites/sprite"+str(x)+".png"))
  return backgrounds, sprites
 b,s=readData()
-generateData(b,s,10,1,1,1,0,0)
+generateData(b,s,10,2,4,1,1,1)
