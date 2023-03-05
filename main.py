@@ -26,7 +26,7 @@ def sequential_model():
   return model
 
 #takes 2 arrays of img, returns array of generated img and array of corresponding sprite img
-def generateData(backgrounds,sprites,num_instances,minSpriteCount,maxSpriteCount,rotation,sizing):
+def generateData(num_instances,minSpriteCount,maxSpriteCount,rotation,sizing,flipping):
  data=np.array([]) #array of compound images
  y=np.array([]) #array of sprite in each compound image
  for _ in range(num_instances):
@@ -46,7 +46,7 @@ def generateData(backgrounds,sprites,num_instances,minSpriteCount,maxSpriteCount
  return data, y
 
 #takes the locations of 2 folders of images, returns 2 numpy arrays of those images
-def readData(backgroundsLocation,spritesLocation):
+def readData():
  backgrounds = np.array([])
  files = glob.glob (backgroundsLocation+"/*.img")
  for myFile in files:
@@ -60,5 +60,21 @@ def readData(backgroundsLocation,spritesLocation):
   sprites.append (image)
  print('X_data shape:', np.array(sprites).shape)
  return backgrounds, sprites
-readData("./backgrounds/","./sprites/")
+
+def cleanData():
+ currIndex=1
+ for x in range(1,100):
+  try:
+   image=Image.open("./badbackgrounds/background"+str(x)+".jpg").convert('RGB')
+   image.save("./backgrounds/background"+str(currIndex)+".jpg")
+   currIndex+=1
+  except:
+   try:
+    image=Image.open("./badbackgrounds/background"+str(x)+".JPG").convert('RGB')
+    image.save("./backgrounds/background"+str(currIndex)+".jpg")
+    currIndex+=1
+   except:
+    print("a")
+
+cleanData()
  
