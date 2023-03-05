@@ -26,23 +26,29 @@ def sequential_model():
   return model
 
 #takes 2 arrays of img, returns array of generated img and array of corresponding sprite img
-def generateData(num_instances,minSpriteCount,maxSpriteCount,rotation,sizing,flipping):
+def generateData(backgrounds,sprites,numInstances,minSpriteCount,maxSpriteCount,rotation,sizing,flipping):
  data=np.array([]) #array of compound images
- y=np.array([]) #array of sprite in each compound image
+ y=np.array([]) #array of sprite locations in each compound image
  for _ in range(num_instances):
-  background=random.choice(backgrounds)
-  sprite=random.choice(sprites)
-  compound=background
+  y.append([])
+  sprite=random.choice(sprites).copy().thumbnail((512,512),PIL.Image.ANTIALIAS).convert("RGBA")
+  compound=random.choice(backgrounds).copy().resize((1024,1024))
   for _ in range(random.randint(minSpriteCount,maxSpriteCount)):
    if rotation:
     tempSprite=sprite.rotate(random.randint(0,360),true) #true makes it resize to fit new image. Uses nearest neighbor to keep pixel colors
    if sizing:
-    tempSprite=tempSprite.resize(int(((random.random()*2)+0.5))*tempSprite.size,PIL.Image.NEAREST)
-   background.paste(tempSprite, (random.randint(0,background.size[0]),random.randint(0,background.size[1])))
-
+    newSize=random.randint(32,512)
+    tempSprite=tempSprite.resize((newSize,newSize),PIL.Image.NEAREST)
+   if flipping and random.randion(0,1)==0:
+    sprite.transpose(FLIP_LEFT_RIGHT)
+   spriteWidth,spriteHeight=tempSprite.size()
+   spriteX=random.randint(0,1024-width)
+   spriteY=random.randint(0,1024-height)
+   compound.paste(tempSprite, (spriteY,spriteX), tempSprite) #last argument is to apply transparent background
+   y[-1].append([spriteY,spriteX,spriteY+height,spriteX+width])
+   PIL.ImageDraw.Draw.rectangle([spriteY,spriteX,spriteY+height,spriteX+width], fill=None, outline="red")
   data.append(compound)
-  y.append(sprite)
-  #data[0].save("./saveddatas.img")
+  compound.show()
  return data, y
 
 #takes the locations of 2 folders of images, returns 2 numpy arrays of those images
@@ -75,6 +81,4 @@ def cleanData():
     currIndex+=1
    except:
     print("a")
-
-cleanData()
  
