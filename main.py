@@ -29,7 +29,7 @@ def sequential_model():
 def generateData(backgrounds,sprites,numInstances,minSpriteCount,maxSpriteCount,rotation,sizing,flipping):
  data=np.array([]) #array of compound images
  y=np.array([]) #array of sprite locations in each compound image
- for _ in range(num_instances):
+ for _ in range(numInstances):
   y.append([])
   sprite=random.choice(sprites).copy().thumbnail((512,512),PIL.Image.ANTIALIAS).convert("RGBA")
   compound=random.choice(backgrounds).copy().resize((1024,1024))
@@ -38,7 +38,7 @@ def generateData(backgrounds,sprites,numInstances,minSpriteCount,maxSpriteCount,
     tempSprite=sprite.rotate(random.randint(0,360),true) #true makes it resize to fit new image. Uses nearest neighbor to keep pixel colors
    if sizing:
     newSize=random.randint(32,512)
-    tempSprite=tempSprite.resize((newSize,newSize),PIL.Image.NEAREST)
+    tempSprite=tempSprite.template((newSize,newSize),PIL.Image.NEAREST)
    if flipping and random.randion(0,1)==0:
     sprite.transpose(FLIP_LEFT_RIGHT)
    spriteWidth,spriteHeight=tempSprite.size()
@@ -49,25 +49,35 @@ def generateData(backgrounds,sprites,numInstances,minSpriteCount,maxSpriteCount,
    PIL.ImageDraw.Draw.rectangle([spriteY,spriteX,spriteY+height,spriteX+width], fill=None, outline="red")
   data.append(compound)
   compound.show()
+  exit()
  return data, y
 
 #takes the locations of 2 folders of images, returns 2 numpy arrays of those images
 def readData():
- backgrounds = np.array([])
- files = glob.glob (backgroundsLocation+"/*.img")
+ backgrounds = []
+ for x in range(1,81):
+  backgrounds.append(Image.open("./backgrounds/background"+str(x)+".jpg"))
+ sprites = []
+ for x in range(1,101):
+  sprites.append(Image.open("./sprites/background"+str(x)+".jpg"))
+ backgrounds[0].show()
+ files = glob.glob ("./backgrounds/*.jpg")
  for myFile in files:
   image = cv2.imread (myFile)
   backgrounds.append (image)
- print('X_data shape:', np.array(backgrounds).shape)
- sprites = np.array([])
- files = glob.glob (backgroundsLocation+"/*.img")
+ sprites = []
+ files = glob.glob ("./sprites/*.png")
  for myFile in files:
   image = cv2.imread (myFile)
   sprites.append (image)
- print('X_data shape:', np.array(sprites).shape)
+ backgrounds[0].show()
+ sprites[0].show()
  return backgrounds, sprites
+#b,s=readData()
+#generateData(b,s,10,2,4,0,0,0)
 
 def cleanData():
+ exit() #this served its purpose, don't run it again
  currIndex=1
  for x in range(1,100):
   try:
@@ -81,4 +91,3 @@ def cleanData():
     currIndex+=1
    except:
     print("a")
- 
