@@ -49,15 +49,15 @@ def generateData(backgrounds,sprites,numInstances,minSpriteCount,maxSpriteCount,
     tempSprite.thumbnail((newSize,newSize),PIL.Image.NEAREST)
    if flipping and random.randint(0,1)==0:
     tempSprite=tempSprite.transpose(Image.FLIP_LEFT_RIGHT)
-   tempSprite.convert("RGBA")
    spriteWidth,spriteHeight=tempSprite.size
    spriteX=random.randint(0,1024-spriteWidth)
    spriteY=random.randint(0,1024-spriteHeight)
+   tempSprite.convert("RGBA")
    compound.paste(tempSprite, (spriteX,spriteY), tempSprite) #last argument is to apply transparent background
    y[-1].append([spriteX,spriteY,spriteX+spriteWidth,spriteY+spriteHeight])
-  data.append(compound)
+  data.append(compound.getdata())
   compound=drawRectangles(compound,y[-1])
-  compound.show()
+ data=np.array(data).reshape((numInstances,1024,1024,3))
  return data, y
 
 #takes the locations of 2 folders of images, returns 2 numpy arrays of those images
@@ -70,4 +70,10 @@ def readData():
   sprites.append(Image.open("./sprites/sprite"+str(x)+".png"))
  return backgrounds, sprites
 b,s=readData()
-generateData(b,s,10,2,4,1,1,1)
+data,y=generateData(b,s,10,2,4,1,1,1)
+#print(data)
+print(len(data))
+print(len(data[0]))
+print(len(data[0][0]))
+print(len(data[0][0][0]))
+print(y)
