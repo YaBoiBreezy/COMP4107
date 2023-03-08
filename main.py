@@ -1,10 +1,13 @@
 #Alexander Breeze   101 143 291
 #Michael Balcerzak  101 071 699
+#Patrick Obi?
+
 import PIL
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras
-from keras import layers
+from tensorflow import keras, linalg, map_fn
+from tensorflow.keras import layers
+from keras.models import Sequential
 import pandas as pd
 import sklearn
 from sklearn.model_selection import train_test_split
@@ -23,7 +26,7 @@ def custom_loss(y,yhat): #using lanbda function to have access to yhat while ite
 def createModelHP(xTrain, yTrain, xVal, yVal, params):
  print("creating model:")
  print(params)
- model = Sequential()
+ model = keras.Sequential()
  model.add(layers.Conv2D(filters=params['filter1'], kernel_size=(3,3,3), activation=params['convActivation'], input_shape=(1024, 1024, 3)))
  model.add(layers.MaxPooling2D(params['pool1']))
  model.add(layers.Conv2D(filters=params['filter2'], kernel_size=params['kernel2'], activation=params['convActivation']))
@@ -52,7 +55,7 @@ def createModelHP(xTrain, yTrain, xVal, yVal, params):
 def createModel(xTrain, yTrain, xVal, yVal):
  print("creating model")
  model = Sequential()
- model.add(layers.Conv2D(512, kernel_size=(3,3,3), activation='sigmoid', input_shape=(1024, 1024, 3)))
+ model.add(layers.Conv2D(512, kernel_size=3, activation='sigmoid', input_shape=(1024, 1024, 3)))
  model.add(layers.MaxPooling2D(3))
  model.add(layers.Conv2D(512, kernel_size=5, activation='sigmoid'))
  model.add(layers.MaxPooling2D(3))
@@ -63,15 +66,15 @@ def createModel(xTrain, yTrain, xVal, yVal):
  model.add(layers.Conv2D(512, kernel_size=5, activation='sigmoid'))
  model.add(layers.MaxPooling2D(3))
  model.add(layers.Flatten())
- model.add(layers.Dense(2048, activation=params['NNActivation']))
- model.add(layers.Dense(2048, activation=params['NNActivation']))
- model.add(layers.Dense(1024, activation=params['NNActivation']))
- model.add(layers.Dense(512, activation=params['NNActivation']))
- model.add(layers.Dense(512, activation=params['NNActivation']))
+ model.add(layers.Dense(2048, activation='sigmoid'))
+ model.add(layers.Dense(2048, activation='sigmoid'))
+ model.add(layers.Dense(1024, activation='sigmoid'))
+ model.add(layers.Dense(512, activation='sigmoid'))
+ model.add(layers.Dense(512, activation='sigmoid'))
  model.add(layers.Dense(4, activation='softplus'))
 
  model.compile(loss=custom_loss, optimizer='adam')
- out = model.fit(x=xTrain, y=yTrain, validation_data=[xVal, yVal], epochs=100, batch_size=params['batch_size'], verbose=0)
+ out = model.fit(x=xTrain, y=yTrain, validation_data=[xVal, yVal], epochs=100)
  print(out)
  print(model)
  return out,model
@@ -130,8 +133,8 @@ def readData():
  return backgrounds, sprites
 
 def main():
- trainSize=80
- testSize=20
+ trainSize=8
+ testSize=2
  backgrounds,sprites=readData()
  print("read data")
  b1, b2 = train_test_split(backgrounds, test_size=0.25) #split backgrounds such that |b1|=60, |b2|=20
