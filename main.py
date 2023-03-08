@@ -4,6 +4,7 @@ import PIL
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
+from keras import layers
 import pandas as pd
 import sklearn
 from sklearn.model_selection import train_test_split
@@ -11,7 +12,6 @@ from PIL import Image, ImageDraw
 import cv2
 import glob
 import random
-import talos
 
 def custom_loss(y,yhat): #using lanbda function to have access to yhat while iterating over y
  c1=y #loss is minimum of sum of squares of manhattan distances between pair of points yhat and all pairs of points in y
@@ -20,7 +20,7 @@ def custom_loss(y,yhat): #using lanbda function to have access to yhat while ite
  return tf.minimum(distances)
 
 # A function that implements a keras model with the sequential API
-def createModel(xTrain, yTrain, xVal, yVal, params):
+def createModelHP(xTrain, yTrain, xVal, yVal, params):
  print("creating model:")
  print(params)
  model = Sequential()
@@ -43,6 +43,34 @@ def createModel(xTrain, yTrain, xVal, yVal, params):
  model.add(layers.Dense(4, activation='softplus'))
 
  model.compile(loss=custom_loss, optimizer='adam') #, metrics=['accuracy']
+ out = model.fit(x=xTrain, y=yTrain, validation_data=[xVal, yVal], epochs=100, batch_size=params['batch_size'], verbose=0)
+ print(out)
+ print(model)
+ return out,model
+
+# A function that implements a keras model with the sequential API
+def createModel(xTrain, yTrain, xVal, yVal):
+ print("creating model")
+ model = Sequential()
+ model.add(layers.Conv2D(512, kernel_size=(3,3,3), activation='sigmoid', input_shape=(1024, 1024, 3)))
+ model.add(layers.MaxPooling2D(3))
+ model.add(layers.Conv2D(512, kernel_size=5, activation='sigmoid'))
+ model.add(layers.MaxPooling2D(3))
+ model.add(layers.Conv2D(512, kernel_size=5, activation='sigmoid'))
+ model.add(layers.MaxPooling2D(3))
+ model.add(layers.Conv2D(512, kernel_size=5, activation='sigmoid'))
+ model.add(layers.MaxPooling2D(3))
+ model.add(layers.Conv2D(512, kernel_size=5, activation='sigmoid'))
+ model.add(layers.MaxPooling2D(3))
+ model.add(layers.Flatten())
+ model.add(layers.Dense(2048, activation=params['NNActivation']))
+ model.add(layers.Dense(2048, activation=params['NNActivation']))
+ model.add(layers.Dense(1024, activation=params['NNActivation']))
+ model.add(layers.Dense(512, activation=params['NNActivation']))
+ model.add(layers.Dense(512, activation=params['NNActivation']))
+ model.add(layers.Dense(4, activation='softplus'))
+
+ model.compile(loss=custom_loss, optimizer='adam')
  out = model.fit(x=xTrain, y=yTrain, validation_data=[xVal, yVal], epochs=100, batch_size=params['batch_size'], verbose=0)
  print(out)
  print(model)
@@ -135,10 +163,10 @@ def main():
     'neuron5': [512, 1024, 2048, 4096, 8192, 16384],
     'convActivation': ['sigmoid', 'elu', 'linear', 'softmax'],
     'NNActivation': ['sigmoid', 'elu', 'linear', 'softmax'],
+    'epochs' : [50, 100, 200],
     'batch_size': (10,trainSize,10)}  #(min,max,steps)
-
- t = talos.Scan(x=trainData, y=trainY, x_val=valData, y_val=valY, params=p, model=createModel, experiment_name='duplicateFinder', round_limit=5) #use performance_target maybe
- print(t.best_model(metric='f1score', asc=True)) #metric must be one used in experiment, asc=True bc want to minimize
- print(t.details)
+ out,model=createModel(trainData,trainY,valData,valY)
+ print(out)
+ print(model)
 
 main()
