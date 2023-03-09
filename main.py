@@ -1,6 +1,6 @@
 #Alexander Breeze   101 143 291
 #Michael Balcerzak  101 071 699
-#Patrick Obi?
+#Ifeanyichukwu Obi  101 126 269
 
 import PIL
 import numpy as np
