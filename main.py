@@ -2,11 +2,11 @@
 #Michael Balcerzak  101 071 699
 #Ifeanyichukwu Obi  101 126 269
 
-```
+'''
 sources:
 https://stackoverflow.com/questions/62756658/loss-function-for-yolo
 https://machinelearningspace.com/yolov3-tensorflow-2-part-1/
-```
+'''
 
 import PIL
 import numpy as np
@@ -26,11 +26,11 @@ gridSize=16 #divide image into gridSize x gridSize quadrants
 quadSize=1024/gridSize #number of pixels in each quadrant
 #labels y=[dataPoint][xQuadrant][yQuadrant][confidence,xOffset,yOffset,width,height]
 
-def custom_loss(y,yhat): #using lanbda function to have access to yhat while iterating over y
- c1=y #loss is minimum of sum of squares of manhattan distances between pair of points yhat and all pairs of points in y
- c2=yhat
- distances=map_fn(lambda c1: tf.add(tf.square(tf.add(tf.abs(tf.subtract(c1[0],c2[0])),tf.abs(tf.subtract(c1[1],c2[1])))),tf.square(tf.add(tf.abs(tf.subtract(c1[2],c2[2])),tf.abs(tf.subtract(c1[3],c2[3]))))))
- return tf.minimum(distances)
+def custom_loss(y,yhat): #using lambda function to have access to yhat while iterating over y
+ a = keras.losses.BinaryCrossentropy()(y_actual[:,:,0],y_pred[:,:,0]) #compare prediction to actual for whether there is an item in this quad
+ b = keras.losses.MeanSquaredError()(y_actual[:,:,1:]*y_actual[:,:,0], y_pred[:,:,1:]*y_actual[:,:,0]) #compare coordinates, but if y_actual[:,:,0]=0 then it should be 0
+ loss= a + b   #maybe add weight to a to force NN to learn coordinates?
+ return loss
 
 # A function that implements a keras model with the sequential API
 def createModel(xTrain, yTrain, xVal, yVal):
@@ -56,8 +56,19 @@ def createModel(xTrain, yTrain, xVal, yVal):
 
  model.compile(loss=custom_loss, optimizer='adam')
  out = model.fit(x=xTrain, y=yTrain, validation_data=[xVal, yVal], epochs=100)
- print(out)
- print(model)
+
+ input = Input(shape = (X_train.shape[1]))
+ branchA = Dense(neuronsA, activation = "relu")(input)
+ branchB = Dense(neuronsB, activation = "sigmoid")(input)
+
+ batch_size = 3
+ layer_1 = tf.ones((batch_size, 2))
+ output_1 = layer_1[:, None, 0]
+ output_2 = tf.sigmoid(layer_1[:, None, 1])
+ output = tf.concat([output_1, output_2], axis=-1)
+
+ out = concatenate([branchA, branchB])
+
  return out,model
 
 def drawRectangles(image,label):
@@ -70,7 +81,7 @@ def drawRectangles(image,label):
     y=int(l[2]+bigY*quadSize)
     w=int(l[3]/2) #halfWidth, halfHeight
     h=int(l[4]/2)
-   image2.rectangle([x-w,y-h,x+w,x+h], fill=None, outline="red", width=3)
+    image2.rectangle([x-w,y-h,x+w,y+h], fill=None, outline="red", width=3)
  return image
 
 #takes 2 arrays of img, returns array of generated img and array of corresponding sprite img
@@ -78,7 +89,7 @@ def generateData(backgrounds,sprites,numInstances,minSpriteCount,maxSpriteCount,
  data=[] #array of compound images
  y=[] #array of sprite locations in each compound image
  for _ in range(numInstances):
-  y.append([[[0,0,0,0,0]]*gridSize]*gridSize)
+  newLabel=[[[0,0,0,0,0] for __ in range(gridSize)] for _ in range(gridSize)]
   sprite=random.choice(sprites)
   compound=random.choice(backgrounds).copy()
   for _ in range(random.randint(minSpriteCount,maxSpriteCount)):
@@ -94,16 +105,21 @@ def generateData(backgrounds,sprites,numInstances,minSpriteCount,maxSpriteCount,
    spriteX=random.randint(0,1024-spriteWidth)
    spriteY=random.randint(0,1024-spriteHeight)
    midX=int(spriteX+(spriteWidth/2))
-   midY=int(spriteX+(spriteWidth/2))
+   midY=int(spriteY+(spriteHeight/2))
    bigX=int(midX / quadSize)
-   bigX=int(midY / quadSize)
+   bigY=int(midY / quadSize)
    xOffset=int(midX % quadSize)
    yOffset=int(midY % quadSize)
+   print(f'{quadSize} {spriteWidth} {spriteHeight} {spriteX} {spriteY} {midX} {midY} {bigX} {bigY} {xOffset} {yOffset}')
    tempSprite.convert("RGBA")
    compound.paste(tempSprite, (spriteX,spriteY), tempSprite) #last argument is to apply transparent background
-   y[-1][bigX][bigY]=[1,xOffset,yOffset,spriteWidth,spriteHeight] #may overwrite previous sprite, but unlikely so ignore
+   print(newLabel)
+   newLabel[bigX][bigY]=[1, xOffset, yOffset, spriteWidth, spriteHeight]
   data.append(compound.getdata())
-  compound=drawRectangles(compound,y[-1])
+  y.append(newLabel)
+  compound=drawRectangles(compound,newLabel)
+  compound.show()
+  exit()
  data=np.array(data).reshape((numInstances,1024,1024,3))
  y=np.array(y)
  return data, y
@@ -123,18 +139,21 @@ def readData():
 def main():
  trainSize=8
  testSize=2
+ print("reading data")
  backgrounds,sprites=readData()
- print("read data")
+ print("data is read, splitting")
  b1, b2 = train_test_split(backgrounds, test_size=0.25) #split backgrounds such that |b1|=60, |b2|=20
  s1, s2 = train_test_split(sprites, test_size=0.2) #split sprites such that |s1|=75, |s2|=25
+ print("data is split, generating datapoints")
  trainData,trainY=generateData(b1,s1,trainSize,2,4,0,1,0)
  valData,valY=generateData(b2,s2,testSize,2,4,0,1,0)
- print("generated data")
+ print("datapoints are generated, training model")
  print(trainData.shape)
  print(valData.shape)
  print(trainY.shape)
  print(valY.shape)
 
+ exit()
  out,model=createModel(trainData,trainY,valData,valY)
  print(out)
  print(model)
