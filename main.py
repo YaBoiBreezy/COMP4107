@@ -35,9 +35,22 @@ gridSize=16 #divide image into gridSize x gridSize quadrants
 quadSize=1024/gridSize #number of pixels in each quadrant
 #labels y=[dataPoint][xQuadrant][yQuadrant][confidence,xOffset,yOffset,width,height]
 
+def kmeans(image,boxes,confidences):
+ images=[]
+ threshold=0.5
+ dim=64
+ for bigX in range(gridSize):
+  for bigY in range(gridSize):
+   confidence=confidences[bigX*quadSize+bigY]
+   box=boxes[bigX*quadSize+bigY]
+   #get image from box, for all boxes with confidence>threshold, reshape to dim x dim, add to images list
+ #call kmeans on images list, create group vector in same format is confidences (list of 0 and int corresponding to boxes)
+ return groups
+
 def customLoss(y,yhat): #using lambda function to have access to yhat while iterating over y
- a = keras.losses.BinaryCrossentropy()(y_actual[:,:,0],y_pred[:,:,0]) #compare prediction to actual for whether there is an item in this quad
- b = keras.losses.MeanSquaredError()(y_actual[:,:,1:]*y_actual[:,:,0], y_pred[:,:,1:]*y_actual[:,:,0]) #compare coordinates, but if y_actual[:,:,0]=0 then it should be 0 bc there is no object centered in that quadrant
+ a = keras.losses.BinaryCrossentropy()(y[0],yhat[0]) #compare prediction to actual for whether there is an item in this quad
+ index=np.repeat(y[0],4,axis=0)
+ b = keras.losses.MeanSquaredError()(y[1]*index,yhat[1]*index) #compare coordinates, but if y_actual[:,:,0]=0 then it should be 0 bc there is no object centered in that quadrant
  loss= a + b
  return loss
 
@@ -45,29 +58,20 @@ def customLoss(y,yhat): #using lambda function to have access to yhat while iter
 def createModel(xTrain, yTrain, xVal, yVal):
  print("creating model")
  input = keras.Input(shape=(1024, 1024, 3))
- layer_2 = layers.Conv2D(32, kernel_size=32, strides=16, activation='sigmoid')(input)
- layer_3 = layers.Conv2D(32, kernel_size=32, strides=16, activation='sigmoid')(layer_2)
- layer_4 = layers.Flatten()(layer_3)
- layer_5 = layers.Dense(256, activation='sigmoid')(layer_4)
- 
- outputs=[]
- for x in range(gridSize):
-  outputs.append([])
-  for y in range(gridSize):
-   output_1=layers.Dense(1, activation='sigmoid') #confidence
-   output_2=layers.Dense(4, activation='linear')  #bounding box
-   concat_out=layers.Concatenate([output_1, output_2])
-   outputs[-1].append([concat_out])
+ layer_2 = layers.Conv2D(32, kernel_size=3, padding=same, activation='sigmoid')(input)
+ layer_3 = layers.Conv2D(32, kernel_size=32, padding=same, strides=16, activation='sigmoid')(layer_2)
+ layer_4 = layers.Conv2D(32, kernel_size=32, padding=same, dilation=16, activation='sigmoid')(layer_3)
 
- model = keras.Model(inputs=input, outputs=outputs)
+ #edit layers here, don't touch layers input, 2, 3, final, output_1, output_2. NO STRIDES, padding=same for all
+ 
+ final = layers.Conv2D(32, kernel_size=32, padding=same, activation='sigmoid')(layer_ .........)
+ output_1=layers.Conv2D(1, kernel_size=32, padding=same, strides=4, activation='sigmoid')(final) #confidence
+ output_2=layers.Conv2D(4, kernel_size=32, padding=same, strides=4, activation='linear')(final) #bounding box
+
+ model = keras.Model(inputs=input, outputs=[output_1, output_2])
  model.compile(optimizer='adam', loss=customLoss)
  print(model.summary())
- out = model.fit(x=xTrain, y=yTrain, validation_data=[xVal, yVal], epochs=100)
-
- input = Input(shape = (X_train.shape[1]))
- branchA = Dense(neuronsA, activation = "relu")(input)
- branchB = Dense(neuronsB, activation = "sigmoid")(input)
- out = concatenate([branchA, branchB])
+ out = model.fit(x=xTrain, y=[yTrain['confidences'],yTrain['boxes']], validation_data=[xVal, [yVal['confidences'],yVal['boxes']]], epochs=100)
 
  return model
 
@@ -191,8 +195,8 @@ def main():
  print(valY.shape)
 
  model=createModel(trainData,trainY,valData,valY)
- boxes,labels=model.predict(valData[0])
- boxes,groups=kmeans(valData[0],boxes,labels)
+ boxes,confidences=model.predict(valData[0])
+ groups=kmeans(valData[0],boxes,confidences)
  drawLabels(valData[0],boxes,groups)
 
 main()
