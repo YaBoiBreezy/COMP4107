@@ -2,6 +2,15 @@
 #Michael Balcerzak  101 071 699
 #Ifeanyichukwu Obi  101 126 269
 
+#TODO:
+#make cnn to do yolo
+#make loss take 2 outputs, do loss
+#make function to take sprites using CNN output, generate data for kmeans
+#make function to run kmeans, return bounding boxes and groups
+
+#TOFIX: readdata and generatedata both have small values for faster testing
+
+
 '''
 sources:
 https://stackoverflow.com/questions/62756658/loss-function-for-yolo
@@ -12,8 +21,8 @@ import PIL
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras, linalg, map_fn
-from tensorflow.keras import layers
-from keras.models import Sequential
+from keras import layers
+from keras.models import Sequential, Functional
 import pandas as pd
 import sklearn
 from sklearn.model_selection import train_test_split
@@ -26,74 +35,97 @@ gridSize=16 #divide image into gridSize x gridSize quadrants
 quadSize=1024/gridSize #number of pixels in each quadrant
 #labels y=[dataPoint][xQuadrant][yQuadrant][confidence,xOffset,yOffset,width,height]
 
-def custom_loss(y,yhat): #using lambda function to have access to yhat while iterating over y
+def customLoss(y,yhat): #using lambda function to have access to yhat while iterating over y
  a = keras.losses.BinaryCrossentropy()(y_actual[:,:,0],y_pred[:,:,0]) #compare prediction to actual for whether there is an item in this quad
- b = keras.losses.MeanSquaredError()(y_actual[:,:,1:]*y_actual[:,:,0], y_pred[:,:,1:]*y_actual[:,:,0]) #compare coordinates, but if y_actual[:,:,0]=0 then it should be 0
- loss= a + b   #maybe add weight to a to force NN to learn coordinates?
+ b = keras.losses.MeanSquaredError()(y_actual[:,:,1:]*y_actual[:,:,0], y_pred[:,:,1:]*y_actual[:,:,0]) #compare coordinates, but if y_actual[:,:,0]=0 then it should be 0 bc there is no object centered in that quadrant
+ loss= a + b
  return loss
 
 # A function that implements a keras model with the sequential API
 def createModel(xTrain, yTrain, xVal, yVal):
  print("creating model")
- model = Sequential()
- model.add(layers.Conv2D(512, kernel_size=3, activation='sigmoid', input_shape=(1024, 1024, 3)))
- model.add(layers.MaxPooling2D(3))
- model.add(layers.Conv2D(512, kernel_size=5, activation='sigmoid'))
- model.add(layers.MaxPooling2D(3))
- model.add(layers.Conv2D(512, kernel_size=5, activation='sigmoid'))
- model.add(layers.MaxPooling2D(3))
- model.add(layers.Conv2D(512, kernel_size=5, activation='sigmoid'))
- model.add(layers.MaxPooling2D(3))
- model.add(layers.Conv2D(512, kernel_size=5, activation='sigmoid'))
- model.add(layers.MaxPooling2D(3))
- model.add(layers.Flatten())
- model.add(layers.Dense(2048, activation='sigmoid'))
- model.add(layers.Dense(2048, activation='sigmoid'))
- model.add(layers.Dense(1024, activation='sigmoid'))
- model.add(layers.Dense(512, activation='sigmoid'))
- model.add(layers.Dense(512, activation='sigmoid'))
- model.add(layers.Dense(4, activation='softplus'))
+ input = keras.Input(shape=(1024, 1024, 3))
+ layer_2 = layers.Conv2D(32, kernel_size=32, strides=16, activation='sigmoid')(input)
+ layer_3 = layers.Conv2D(32, kernel_size=32, strides=16, activation='sigmoid')(layer_2)
+ layer_4 = layers.Flatten()(layer_3)
+ layer_5 = layers.Dense(256, activation='sigmoid')(layer_4)
+ 
+ outputs=[]
+ for x in range(gridSize):
+  outputs.append([])
+  for y in range(gridSize):
+   output_1=layers.Dense(1, activation='sigmoid') #confidence
+   output_2=layers.Dense(4, activation='linear')  #bounding box
+   concat_out=layers.Concatenate([output_1, output_2])
+   outputs[-1].append([concat_out])
 
- model.compile(loss=custom_loss, optimizer='adam')
+ model = keras.Model(inputs=input, outputs=outputs)
+ model.compile(optimizer='adam', loss=customLoss)
+ print(model.summary())
  out = model.fit(x=xTrain, y=yTrain, validation_data=[xVal, yVal], epochs=100)
 
  input = Input(shape = (X_train.shape[1]))
  branchA = Dense(neuronsA, activation = "relu")(input)
  branchB = Dense(neuronsB, activation = "sigmoid")(input)
-
- batch_size = 3
- layer_1 = tf.ones((batch_size, 2))
- output_1 = layer_1[:, None, 0]
- output_2 = tf.sigmoid(layer_1[:, None, 1])
- output = tf.concat([output_1, output_2], axis=-1)
-
  out = concatenate([branchA, branchB])
 
- return out,model
+ return model
 
-def drawRectangles(image,label):
+def drawLabels(image,boxes,groups):
+ colordict=["red","blue","purple","orange","yellow"]
  image2=ImageDraw.Draw(image)
  for bigX in range(gridSize):
   for bigY in range(gridSize):
-   l=label[bigX][bigY]
-   if l[0]:
-    x=int(l[1]+bigX*quadSize) #middle of sprite
-    y=int(l[2]+bigY*quadSize)
-    w=int(l[3]/2) #halfWidth, halfHeight
-    h=int(l[4]/2)
-    image2.rectangle([x-w,y-h,x+w,y+h], fill=None, outline="red", width=3)
+   group=groups[bigX*quadSize+bigY]
+   box=boxes[bigX*quadSize+bigY]
+   if group[0]:
+    cords=centerToCorner(box,bigX*quadSize,bigY*quadSize)
+    image2.rectangle(cords, fill=None, outline=colorDict[group], width=3)
  return image
 
+def centerToCorner(cords,offsetX,offsetY):
+ x=int(box[0]+offsetX)
+ y=int(box[1]+offsetY)
+ w=int(box[2]/2) #halfWidth, halfHeight
+ h=int(box[3]/2)
+ return [x-w,y-h,x+w,y+h]
+
+def cornerToCenter(cords):
+ w=int(cords[2]-cords[0])
+ h=int(cords[3]-cords[1])
+ cx=int(cords[0]+w/2)
+ cy=int(cords[1]+h/2)
+ return [cx,cy,w,h]
+
+spriteWidth,spriteHeight=tempSprite.size
+   spriteX=random.randint(0,1024-spriteWidth)
+   spriteY=random.randint(0,1024-spriteHeight)
+   #midX=int(spriteX+(spriteWidth/2))
+   #midY=int(spriteY+(spriteHeight/2))
+   bigX=int(midX / quadSize)
+   bigY=int(midY / quadSize)
+   #xOffset=int(midX % quadSize)
+   #yOffset=int(midY % quadSize)
+   # print(f'{quadSize} {spriteWidth} {spriteHeight} {spriteX} {spriteY} {midX} {midY} {bigX} {bigY} {xOffset} {yOffset}')
+   tempSprite.convert("RGBA")
+   compound.paste(tempSprite, (spriteX,spriteY), tempSprite) #last argument is to apply transparent background
+
+
 #takes 2 arrays of img, returns array of generated img and array of corresponding sprite img
-def generateData(backgrounds,sprites,numInstances,minSpriteCount,maxSpriteCount,rotation,sizing,flipping):
+def generateData(backgroundList,spriteList,numInstances,minSpriteCount,maxSpriteCount,minSpriteTypeCount,maxSpriteTypeCount,rotation,sizing,flipping):
  data=[] #array of compound images
- y=[] #array of sprite locations in each compound image
+ boxes=[] #array of sprite locations in each compound image
+ confidences=[] #categorical array of type of sprite in given quadrant of image
+ groups=[] #binary array of if there is a sprite in given quadrant of image
  for _ in range(numInstances):
-  newLabel=[[[0,0,0,0,0] for __ in range(gridSize)] for _ in range(gridSize)]
-  sprite=random.choice(sprites)
+  newBoxes=[[[0,0,0,0] for __ in range(gridSize)] for _ in range(gridSize)]
+  newconfidences=[0]*grid_size**2
+  newgroups=[0]*grid_size**2
+  sprites=random.sample(spriteList,random.randint(minSpriteTypeCount,maxSpriteTypeCount))
   compound=random.choice(backgrounds).copy()
   for _ in range(random.randint(minSpriteCount,maxSpriteCount)):
-   tempSprite=sprite.copy()
+   spriteIndex=random.randint(0,len(sprites))
+   tempSprite=sprites[spriteIndex].copy()
    if rotation:
     tempSprite=tempSprite.rotate(random.randint(0,360), expand=1) #true makes it resize to fit new image. Uses nearest neighbor to keep pixel colors
    if sizing:
@@ -104,33 +136,38 @@ def generateData(backgrounds,sprites,numInstances,minSpriteCount,maxSpriteCount,
    spriteWidth,spriteHeight=tempSprite.size
    spriteX=random.randint(0,1024-spriteWidth)
    spriteY=random.randint(0,1024-spriteHeight)
-   midX=int(spriteX+(spriteWidth/2))
-   midY=int(spriteY+(spriteHeight/2))
+   #midX=int(spriteX+(spriteWidth/2))
+   #midY=int(spriteY+(spriteHeight/2))
    bigX=int(midX / quadSize)
    bigY=int(midY / quadSize)
-   xOffset=int(midX % quadSize)
-   yOffset=int(midY % quadSize)
-   print(f'{quadSize} {spriteWidth} {spriteHeight} {spriteX} {spriteY} {midX} {midY} {bigX} {bigY} {xOffset} {yOffset}')
+   #xOffset=int(midX % quadSize)
+   #yOffset=int(midY % quadSize)
+   # print(f'{quadSize} {spriteWidth} {spriteHeight} {spriteX} {spriteY} {midX} {midY} {bigX} {bigY} {xOffset} {yOffset}')
    tempSprite.convert("RGBA")
    compound.paste(tempSprite, (spriteX,spriteY), tempSprite) #last argument is to apply transparent background
-   print(newLabel)
-   newLabel[bigX][bigY]=[1, xOffset, yOffset, spriteWidth, spriteHeight]
+   newLabel[bigX][bigY]=cornerToCenter([spriteX,spriteY,spriteWidth,spriteHeight])  #[xOffset, yOffset, spriteWidth, spriteHeight]
+   newConfidences[bigX*quadSize+bigY]=1
+   newGroups[bigX*quadSize+bigY]=spriteIndex+1
   data.append(compound.getdata())
-  y.append(newLabel)
-  compound=drawRectangles(compound,newLabel)
-  compound.show()
-  exit()
+  boxes.append(newBoxes)
+  confidences.append(newConfidences)
+  groups.append(newGroups)
+  # compound=drawRectangles(compound,newLabel)
+  # compound.show()
  data=np.array(data).reshape((numInstances,1024,1024,3))
- y=np.array(y)
+ boxes=np.array(boxes).reshape((numInstances,(gridSize**2)*5))
+ confidences=np.array(confidences).reshape((numInstances,(gridSize**2)*5))
+ groups=np.array(groups).reshape((numInstances,(gridSize**2)*5))
+ y={'boxes':boxes;'confidences':confidences;'groups':groups}
  return data, y
 
 #takes the locations of 2 folders of images, returns 2 numpy arrays of those images
 def readData():
  backgrounds = []
- for x in range(1,80):
+ for x in range(1,8):
   backgrounds.append(Image.open("./backgrounds/background"+str(x)+".jpg").resize((1024,1024)))
  sprites = []
- for x in range(100):
+ for x in range(10):
   img=Image.open("./sprites/sprite"+str(x)+".png")
   img.thumbnail((512,512),PIL.Image.LANCZOS)
   sprites.append(img)
@@ -141,21 +178,21 @@ def main():
  testSize=2
  print("reading data")
  backgrounds,sprites=readData()
- print("data is read, splitting")
+ print("splitting data")
  b1, b2 = train_test_split(backgrounds, test_size=0.25) #split backgrounds such that |b1|=60, |b2|=20
- s1, s2 = train_test_split(sprites, test_size=0.2) #split sprites such that |s1|=75, |s2|=25
- print("data is split, generating datapoints")
- trainData,trainY=generateData(b1,s1,trainSize,2,4,0,1,0)
- valData,valY=generateData(b2,s2,testSize,2,4,0,1,0)
- print("datapoints are generated, training model")
+ s1, s2 = train_test_split(sprites, test_size=0.2) #split sprites such that |s1|=80, |s2|=20
+ print("generating datapoints")
+ trainData,trainY=generateData(b1,s1,trainSize,2,4,2,3,0,1,0)
+ valData,valY=generateData(b2,s2,testSize,2,4,2,3,0,1,0)
+ print("training model")
  print(trainData.shape)
  print(valData.shape)
  print(trainY.shape)
  print(valY.shape)
 
- exit()
- out,model=createModel(trainData,trainY,valData,valY)
- print(out)
- print(model)
+ model=createModel(trainData,trainY,valData,valY)
+ boxes,labels=model.predict(valData[0])
+ boxes,groups=kmeans(valData[0],boxes,labels)
+ drawLabels(valData[0],boxes,groups)
 
 main()
