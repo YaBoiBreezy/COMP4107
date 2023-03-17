@@ -50,12 +50,14 @@ def kmeans(image,boxes,confidences):
 def customLoss(y,yhat):
  print("SHAPES")
  print(y.shape)
+ boxY=tf.slice(y,[0,0,0,1],[1,gridSize,gridSize,4]) #This should make it so we don't need the useless neurons in the output layer
+ print(boxY.shape)
+ a = boxY[:,:,:,:]*y[:,:,:,:1]
+ print(a.shape)
  print(yhat.shape)
- # a = keras.losses.BinaryCrossentropy()(y[0],yhat[:,:,0]) #compare prediction to actual for whether there is an item in this quad
- a = y[:,:,:,1:]*y[:,:,:,:1]
- b = yhat[:,:,:,1:]*y[:,:,:,:1]
+ b = yhat[:,:,:,:]*y[:,:,:,:1]
+ print(b.shape)
  loss = keras.losses.MeanSquaredError()(a,b) #compare coordinates, but if y_actual[:,:,0]=0 then it should be 0 bc there is no object centered in that quadrant
- # loss= a + b
  return loss
 
 def customLoss2(y,yhat):
@@ -79,7 +81,7 @@ def createModel(xTrain, yTrain, xVal, yVal):
  
  final = layers.Conv2D(32, kernel_size=32, padding="same", activation='sigmoid')(layer_4)
  output_1=layers.Conv2D(1, kernel_size=4, padding="same", strides=4, activation='sigmoid')(final) #confidence
- output_2=layers.Conv2D(5, kernel_size=4, padding="same", strides=4, activation='linear')(final) #bounding box, first value is ignored so loss works
+ output_2=layers.Conv2D(4, kernel_size=4, padding="same", strides=4, activation='linear')(final) #bounding box, first value is ignored so loss works
 
  model = keras.Model(inputs=input, outputs=[output_1, output_2])
  model.compile(optimizer='adam', loss=[customLoss2,customLoss])
