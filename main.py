@@ -47,22 +47,24 @@ def kmeans(image,boxes,confidences):
  #call kmeans on images list, create group vector in same format is confidences (list of 0 and int corresponding to boxes)
  return groups
 
-def customLoss(y,yhat): #using lambda function to have access to yhat while iterating over y
+def customLoss(y,yhat):
  print("SHAPES")
  print(y.shape)
  print(yhat.shape)
- print(yhat[0].shape)
- print(yhat[1].shape)
- print("BCE SHAPES")
- print(y[0].shape)
- print(yhat[:,:,0].shape)
- print("hsdifhio")
- print(y[1][:,:,1:].shape)
- print(yhat[:,:,:,1:].shape)
- a = keras.losses.BinaryCrossentropy()(y[0],yhat[:,:,0]) #compare prediction to actual for whether there is an item in this quad
- b = keras.losses.MeanSquaredError()(y[1][:,:,1:]*y[0],yhat[:,:,1:]*y[0]) #compare coordinates, but if y_actual[:,:,0]=0 then it should be 0 bc there is no object centered in that quadrant
- loss= a + b
+ # a = keras.losses.BinaryCrossentropy()(y[0],yhat[:,:,0]) #compare prediction to actual for whether there is an item in this quad
+ a = y[:,:,:,1:]*y[:,:,:,:1]
+ b = yhat[:,:,:,1:]*y[:,:,:,:1]
+ loss = keras.losses.MeanSquaredError()(a,b) #compare coordinates, but if y_actual[:,:,0]=0 then it should be 0 bc there is no object centered in that quadrant
+ # loss= a + b
  return loss
+
+def customLoss2(y,yhat):
+ print("SHAPES2")
+ print(y.shape)
+ print(yhat.shape)
+ loss = keras.losses.BinaryCrossentropy()(y,yhat) #compare prediction to actual for whether there is an item in this quad
+ return loss
+
 
 # A function that implements a keras model with the sequential API
 def createModel(xTrain, yTrain, xVal, yVal):
@@ -77,13 +79,18 @@ def createModel(xTrain, yTrain, xVal, yVal):
  
  final = layers.Conv2D(32, kernel_size=32, padding="same", activation='sigmoid')(layer_4)
  output_1=layers.Conv2D(1, kernel_size=4, padding="same", strides=4, activation='sigmoid')(final) #confidence
- output_2=layers.Conv2D(4, kernel_size=4, padding="same", strides=4, activation='linear')(final) #bounding box
+ output_2=layers.Conv2D(5, kernel_size=4, padding="same", strides=4, activation='linear')(final) #bounding box, first value is ignored so loss works
 
  model = keras.Model(inputs=input, outputs=[output_1, output_2])
- model.compile(optimizer='adam', loss=customLoss)
+ model.compile(optimizer='adam', loss=[customLoss2,customLoss])
  print(model.summary())
+ yTconf=yTrain[:,:,:,0]
+ yVconf=yVal[:,:,:,0]
  print(yTrain.shape)
- out = model.fit(x=xTrain, y=yTrain, validation_data=[xVal, yVal], epochs=100)
+ print(yTconf.shape)
+ print(yVal.shape)
+ print(yVconf.shape)
+ out = model.fit(x=xTrain, y=[yTconf, yTrain], validation_data=[xVal, [yVconf, yVal]], epochs=10)
 
  return model
 
