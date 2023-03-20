@@ -15,6 +15,7 @@
 sources:
 https://stackoverflow.com/questions/62756658/loss-function-for-yolo
 https://machinelearningspace.com/yolov3-tensorflow-2-part-1/
+https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.linkage.html
 '''
 
 import PIL
@@ -34,17 +35,57 @@ import random
 gridSize=16 #divide image into gridSize x gridSize quadrants
 quadSize=1024/gridSize #number of pixels in each quadrant
 #labels y=[dataPoint][xQuadrant][yQuadrant][confidence,xOffset,yOffset,width,height]
+#groups g=[dataPoint][xQuadrant][yQuadrant][group or 0 if none]
 
-def kmeans(image,boxes,confidences):
+def imageSimilarity(i1,i2):
+ 
+
+def grouping(image,boxes):
+ #kmeans is pixel-based, so bad
+ #histogram looks at popularity of different colors, good but not perfect necessarily
+ #recommend compressing to dense vector representation  https://github.com/UKPLab/sentence-transformers
+ #opencv feature matching   https://docs.opencv.org/4.x/dc/dc3/tutorial_py_matcher.html
+ #opencv homography
+
  images=[]
  threshold=0.5
  dim=64
+ #get image from box, for all boxes with confidence>threshold, reshape to dim x dim, add to images list
  for bigX in range(gridSize):
   for bigY in range(gridSize):
-   confidence=confidences[bigX*quadSize+bigY]
-   box=boxes[int(bigX*quadSize+bigY)*4]
-   #get image from box, for all boxes with confidence>threshold, reshape to dim x dim, add to images list
- #call kmeans on images list, create group vector in same format is confidences (list of 0 and int corresponding to boxes)
+   box=boxes[bigX][bigY]
+   confidence=box[0]
+   if confidence>threshold:
+    x=int(box[0]+bigX*quadSize)
+    y=int(box[1]+bigY*quadSize)
+    w=int(box[2]/2) #halfWidth, halfHeight
+    h=int(box[3]/2)
+    tmp=image.crop([x-w,y-h,x+w,y+h]).resize((dim,dim))
+    tmp=tmp.getdata()
+    images.append(tmp)
+
+ #construct distance matrix between each pair of images
+ sim=[]
+ for i in range(len(images)):
+  for j in range(i+1,len(images)):
+   sim.append(imageSimilarity(images[i],images[j]))
+ 
+
+ #group images into groups where the distance between groups is >=threshold
+ linkage_matrix = linkage(X, "single")
+ cut=cluster.hierarchy.cut_tree(linkage_matrix, height=[3])
+
+ #construct group matrix
+ groups=[[0]*gridSize]*gridSize
+ index=0
+ for bigX in range(gridSize):
+  for bigY in range(gridSize):
+   box=boxes[bigX][bigY]
+   confidence=box[0]
+   if confidence>threshold:
+    groups[bigX][bigY]=cut[index]+1
+    index+=1
+
  return groups
 
 def customLoss(y,yhat):
@@ -80,11 +121,11 @@ def createModel(xTrain, yTrain, xVal, yVal):
  #make sure final is connected to the previous layer
  
  final = layers.Conv2D(32, kernel_size=32, padding="same", activation='sigmoid')(layer_4)
- output_1=layers.Conv2D(1, kernel_size=4, padding="same", strides=4, activation='sigmoid')(final) #confidence
- output_2=layers.Conv2D(4, kernel_size=4, padding="same", strides=4, activation='linear')(final) #bounding box, first value is ignored so loss works
+ output_1=layers.Conv2D(4, kernel_size=4, padding="same", strides=4, activation='linear')(final) #bounding box, first value is ignored so loss works
+ output_2=layers.Conv2D(1, kernel_size=4, padding="same", strides=4, activation='sigmoid')(final) #confidence
 
  model = keras.Model(inputs=input, outputs=[output_1, output_2])
- model.compile(optimizer='adam', loss=[customLoss2,customLoss])
+ model.compile(optimizer='adam', loss=[customLoss,customLoss2])
  print(model.summary())
  yTconf=yTrain[:,:,:,0]
  yVconf=yVal[:,:,:,0]
@@ -92,21 +133,40 @@ def createModel(xTrain, yTrain, xVal, yVal):
  print(yTconf.shape)
  print(yVal.shape)
  print(yVconf.shape)
- out = model.fit(x=xTrain, y=[yTconf, yTrain], validation_data=[xVal, [yVconf, yVal]], epochs=10)
+ out = model.fit(x=xTrain, y=[yTrain, yTconf], validation_data=[xVal, [yVal, yVconf]], epochs=10)
 
  return model
 
+#draws boxes on image. If labels=boxes then will draw boxes, if labels=groups will draw colored boxes
+def drawLabels(image,boxes):
+ print(boxes.shape)
+ print(labels.shape)
+ image2=ImageDraw.Draw(image)
+ for bigX in range(gridSize):
+  for bigY in range(gridSize):
+   label=labels[bigX][bigY][0]
+   box=boxes[bigX][bigY][1:]
+   if label:
+    x=int(box[0]+bigX*quadSize)
+    y=int(box[1]+bigY*quadSize)
+    w=int(box[2]/2) #halfWidth, halfHeight
+    h=int(box[3]/2)
+    image2.rectangle([x-w,y-h,x+w,y+h], fill=None, outline="red", width=3)
+ return image
 
-def drawLabels(image,boxes,groups):
+
+#draws boxes on image. If labels=boxes then will draw boxes, if labels=groups will draw colored boxes
+def drawLabelGroup(image,boxes,groups):
  print(boxes.shape)
  print(groups.shape)
  colordict=["red","blue","purple","orange","yellow"]
  image2=ImageDraw.Draw(image)
  for bigX in range(gridSize):
   for bigY in range(gridSize):
+   label=boxes[bigX][bigY][0]
+   box=boxes[bigX][bigY][1:]
    group=groups[bigX][bigY]
-   box=boxes[bigX][bigY]
-   if group:
+   if label[0]:
     x=int(box[0]+bigX*quadSize)
     y=int(box[1]+bigY*quadSize)
     w=int(box[2]/2) #halfWidth, halfHeight
@@ -185,9 +245,12 @@ def main():
  valData,valY,valGroups=generateData(b2,s2,testSize,2,4,1,2,0,1,0)
  print("training model")
 
- model=createModel(trainData,trainY,valData,valY)
- boxes,confidences=model.predict(valData[0])
- groups=kmeans(valData[0],boxes,confidences)
- drawLabels(valData[0],boxes,groups)
+ # model=createModel(trainData,trainY,valData,valY)
+ # boxes,confidences=model.predict(valData[0])
+ # drawLabels(valData[0],boxes,confidences)
+ # groups=grouping(valData[0],boxes,confidences)
+ groups=grouping(Image.fromarray(np.uint8(valData[0])),valY[0])
+ print(groups)
+ drawGroups(valData[0],boxes,groups)
 
 main()
