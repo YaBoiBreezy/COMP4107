@@ -1,0 +1,50 @@
+Step 1: in main, near the end, there is a variable username. Set it to equal either "Patrick" or "Michael",
+depending on who you are. It controls whether the code runs the CNN or the grouper
+
+The data generator calls are in main:
+ trainData,trainY,trainGroups=generateData(b1,s1,trainSize,2,4,2,3,0,1,0)
+ valData,valY,valGroups=generateData(b2,s2,valSize,2,4,1,2,0,1,0)
+
+Michael:
+In main there is trainSize and vSize. These control the number of datapoints in the
+training and validation datasets. I recommend something like 80 and 20.
+Note that having many data will result in it taking a while to generate, and taking
+lots of memory (~3MB/image). Also more data means more training per epoch, so keep
+that in mind. It will train on training data with validation accuracy listed too,
+then it will display the model operating on validation[0] for visual evaluation.
+The data generator call ends with 0,1,0). That means no rotation, yes resize, no flipping.
+Feel free to allow rotation and flipping once the model starts to be effective.
+Look into YOLO to see an example of architecture, and get a jumpstart on the
+many layers you will likely need.
+To make the CNN work properly, you must:
+HAVE padding="same" ON EVERY LAYER
+Don't touch the activations, input layer, or output layers
+Make sure that the product of all the strides is =64 (e.g. 1 layer with stride=16,
+another layer with stride=4, 16*4=64). This makes the input go from 1024x1024 to 
+64x64 for the output. Putting strides near the beginning will reduce the size sooner,
+leading to a faster overall model.
+make sure the layers are properly connected to each other
+
+Patrick:
+Your job is easier, you are dealing with the grouper. You take an array groups
+which contains bounding boxes for objects of interest and puts them into
+groups by deciding how similar they are to each other. I already have most
+of the code done, all you need to do is make imageSimilarity(i1,i2) which will take
+two 64x64x3 integer arrays and decide how similar they are. Note they may be scaled,
+rotated, flipped, and have different backgrounds.
+The data generator call ends with 0,1,0). That means no rotation, yes resize, no flipping.
+Allow rotation and flipping once the model starts to be effective.
+Look at these links for ideas
+https://stackoverflow.com/questions/11541154/checking-images-for-similarity-with-opencv
+Preferably use code (with citation to source), but otherwise you can use this github 
+link if you can figure out how to add and use it instead
+https://github.com/UKPLab/sentence-transformers
+Once you have the image similarity function done (currently returns random.randint()),
+you can look in the grouping function for
+ cut=cluster.hierarchy.cut_tree(linkage_matrix, height=[0.5])
+The height value (0.5 in this case) is how similar two images must be to be grouped 
+together. You will set this manually based on the results of your image similarity function.
+The sim matrix printed a few lines before will tell you the calculated
+similarity between each pair of images, for reference.
+Once it runs, it should print an image with elements. The groups are dictated by the
+colors of the rectangles.
