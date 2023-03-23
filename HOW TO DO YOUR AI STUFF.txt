@@ -6,7 +6,7 @@ The data generator calls are in main:
  valData,valY,valGroups=generateData(b2,s2,valSize,2,4,1,2,0,1,0)
 
 Michael:
-In main there is trainSize and vSize. These control the number of datapoints in the
+In main there is trainSize and valSize. These control the number of datapoints in the
 training and validation datasets. I recommend something like 80 and 20.
 Note that having many data will result in it taking a while to generate, and taking
 lots of memory (~3MB/image). Also more data means more training per epoch, so keep
@@ -24,6 +24,7 @@ another layer with stride=4, 16*4=64). This makes the input go from 1024x1024 to
 64x64 for the output. Putting strides near the beginning will reduce the size sooner,
 leading to a faster overall model.
 make sure the layers are properly connected to each other
+I set epochs to 1, you will want to increase it
 
 Patrick:
 Your job is easier, you are dealing with the grouper. You take an array groups
@@ -44,6 +45,10 @@ you can look in the grouping function for
  cut=cluster.hierarchy.cut_tree(linkage_matrix, height=[0.5])
 The height value (0.5 in this case) is how similar two images must be to be grouped 
 together. You will set this manually based on the results of your image similarity function.
+IMPORTANT: cut groups images based on distance, so a large number means it is less
+likely to be grouped together. That means your "image similarity" function
+should return SMALLER values for more similar images. You can use 1/x to invert
+the similarities, if necessary.
 The sim matrix printed a few lines before will tell you the calculated
 similarity between each pair of images, for reference.
 Once it runs, it should print an image with elements. The groups are dictated by the

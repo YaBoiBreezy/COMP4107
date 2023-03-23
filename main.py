@@ -44,7 +44,7 @@ def imageSimilarity(i1,i2):
  #histogram looks at popularity of different colors, good but not perfect necessarily
  #recommend compressing to dense vector representation  https://github.com/UKPLab/sentence-transformers
  #opencv feature matching   https://docs.opencv.org/4.x/dc/dc3/tutorial_py_matcher.html
- return random.random()
+ return random.random()*10
 
 def grouping(image,boxes):
  images=[]
@@ -70,12 +70,12 @@ def grouping(image,boxes):
  for i in range(len(images)):
   for j in range(i+1,len(images)):
    sim.append(imageSimilarity(images[i],images[j]))
- print(sim)
+ print(f'similarities: {sim}')
 
  #group images into groups where the distance between groups is >=threshold
  linkage_matrix = linkage(sim, "single")
  cut=cluster.hierarchy.cut_tree(linkage_matrix, height=[0.5])
- print(cut)
+ print(f'groups: {cut}')
 
  #construct group matrix
  groups=np.array([[0]*gridSize]*gridSize)
@@ -136,7 +136,7 @@ def createModel(xTrain, yTrain, xVal, yVal):
  print(yTconf.shape)
  print(yVal.shape)
  print(yVconf.shape)
- out = model.fit(x=xTrain, y=[yTrain, yTconf], validation_data=[xVal, [yVal, yVconf]], epochs=10)
+ out = model.fit(x=xTrain, y=[yTrain, yTconf], validation_data=[xVal, [yVal, yVconf]], epochs=1)
 
  return model
 
@@ -180,7 +180,7 @@ def drawLabelGroup(image,boxes,groups):
     y=int(box[1]+bigY*quadSize)
     w=int(box[2]/2) #halfWidth, halfHeight
     h=int(box[3]/2)
-    image2.rectangle([x-w,y-h,x+w,y+h], fill=None, outline=getColor(i), width=3)
+    image2.rectangle([x-w,y-h,x+w,y+h], fill=None, outline=getColor(group), width=3)
  return image
 
 
@@ -242,8 +242,8 @@ def readData():
  return backgrounds, sprites
 
 def main():
- trainSize=80
- valSize=20
+ trainSize=8
+ valSize=2
  print("reading data")
  backgrounds,sprites=readData()
  print("splitting data")
@@ -255,13 +255,12 @@ def main():
  print("training model")
 
  username="Patrick"
- if username="Michael":
+ if username=="Michael":
   model=createModel(trainData,trainY,valData,valY)
   boxes,confidences=model.predict(valData[0])
   drawLabels(valData[0],boxes,confidences).show()
  elif username=="Patrick":
   groups=grouping(Image.fromarray(np.uint8(valData[0])),valY[0])
-  print(groups)
   drawLabelGroup(Image.fromarray(np.uint8(valData[0])),valY[0],groups).show()
 
 main()
