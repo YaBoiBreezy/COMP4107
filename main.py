@@ -31,6 +31,9 @@ from PIL import Image, ImageDraw
 import cv2
 import glob
 import random
+import scipy
+from scipy import cluster
+from scipy.cluster.hierarchy import dendrogram, linkage
 
 gridSize=16 #divide image into gridSize x gridSize quadrants
 quadSize=1024/gridSize #number of pixels in each quadrant
@@ -38,15 +41,12 @@ quadSize=1024/gridSize #number of pixels in each quadrant
 #groups g=[dataPoint][xQuadrant][yQuadrant][group or 0 if none]
 
 def imageSimilarity(i1,i2):
- 
-
-def grouping(image,boxes):
- #kmeans is pixel-based, so bad
  #histogram looks at popularity of different colors, good but not perfect necessarily
  #recommend compressing to dense vector representation  https://github.com/UKPLab/sentence-transformers
  #opencv feature matching   https://docs.opencv.org/4.x/dc/dc3/tutorial_py_matcher.html
- #opencv homography
+ return random.random()
 
+def grouping(image,boxes):
  images=[]
  threshold=0.5
  dim=64
@@ -63,20 +63,23 @@ def grouping(image,boxes):
     tmp=image.crop([x-w,y-h,x+w,y+h]).resize((dim,dim))
     tmp=tmp.getdata()
     images.append(tmp)
+ print(images)
 
  #construct distance matrix between each pair of images
  sim=[]
  for i in range(len(images)):
   for j in range(i+1,len(images)):
    sim.append(imageSimilarity(images[i],images[j]))
- 
+ print(sim)
 
  #group images into groups where the distance between groups is >=threshold
- linkage_matrix = linkage(X, "single")
- cut=cluster.hierarchy.cut_tree(linkage_matrix, height=[3])
+ linkage_matrix = linkage(sim, "single")
+ cut=cluster.hierarchy.cut_tree(linkage_matrix, height=[0.5])
+ print(cut)
 
  #construct group matrix
- groups=[[0]*gridSize]*gridSize
+ groups=np.array([[0]*gridSize]*gridSize)
+ print(groups.shape)
  index=0
  for bigX in range(gridSize):
   for bigY in range(gridSize):
@@ -120,9 +123,9 @@ def createModel(xTrain, yTrain, xVal, yVal):
  #edit layers here, don't touch layers input, layer_2, layer_3, final, output_1, output_2. NO STRIDES, padding="same" for all
  #make sure final is connected to the previous layer
  
- final = layers.Conv2D(32, kernel_size=32, padding="same", activation='sigmoid')(layer_4)
- output_1=layers.Conv2D(4, kernel_size=4, padding="same", strides=4, activation='linear')(final) #bounding box, first value is ignored so loss works
- output_2=layers.Conv2D(1, kernel_size=4, padding="same", strides=4, activation='sigmoid')(final) #confidence
+ final = layers.Conv2D(32, kernel_size=32, padding="same", strides=4, activation='sigmoid')(layer_4)
+ output_1=layers.Conv2D(4, kernel_size=4, padding="same", activation='linear')(final) #bounding box, first value is ignored so loss works
+ output_2=layers.Conv2D(1, kernel_size=4, padding="same", activation='sigmoid')(final) #confidence
 
  model = keras.Model(inputs=input, outputs=[output_1, output_2])
  model.compile(optimizer='adam', loss=[customLoss,customLoss2])
@@ -154,24 +157,30 @@ def drawLabels(image,boxes):
     image2.rectangle([x-w,y-h,x+w,y+h], fill=None, outline="red", width=3)
  return image
 
+#gets color corresponding to group, but can also return black if too many groups
+def getColor(i):
+ colordict=["red","blue","purple","orange","yellow"]
+ if i>=0 and i<5:
+  return colordict[i]
+ return "black"
 
 #draws boxes on image. If labels=boxes then will draw boxes, if labels=groups will draw colored boxes
 def drawLabelGroup(image,boxes,groups):
  print(boxes.shape)
  print(groups.shape)
- colordict=["red","blue","purple","orange","yellow"]
+ print(image)
  image2=ImageDraw.Draw(image)
  for bigX in range(gridSize):
   for bigY in range(gridSize):
    label=boxes[bigX][bigY][0]
    box=boxes[bigX][bigY][1:]
    group=groups[bigX][bigY]
-   if label[0]:
+   if label:
     x=int(box[0]+bigX*quadSize)
     y=int(box[1]+bigY*quadSize)
     w=int(box[2]/2) #halfWidth, halfHeight
     h=int(box[3]/2)
-    image2.rectangle([x-w,y-h,x+w,y+h], fill=None, outline=colordict[group], width=3)
+    image2.rectangle([x-w,y-h,x+w,y+h], fill=None, outline=getColor(i), width=3)
  return image
 
 
@@ -223,18 +232,18 @@ def generateData(backgroundList,spriteList,numInstances,minSpriteCount,maxSprite
 #takes the locations of 2 folders of images, returns 2 numpy arrays of those images
 def readData():
  backgrounds = []
- for x in range(1,8):
+ for x in range(1,80):
   backgrounds.append(Image.open("./backgrounds/background"+str(x)+".jpg").resize((1024,1024)))
  sprites = []
- for x in range(10):
+ for x in range(100):
   img=Image.open("./sprites/sprite"+str(x)+".png")
   img.thumbnail((512,512),PIL.Image.LANCZOS)
   sprites.append(img)
  return backgrounds, sprites
 
 def main():
- trainSize=8
- testSize=2 
+ trainSize=80
+ valSize=20
  print("reading data")
  backgrounds,sprites=readData()
  print("splitting data")
@@ -242,15 +251,17 @@ def main():
  s1, s2 = train_test_split(sprites, test_size=0.2) #split sprites such that |s1|=80, |s2|=20
  print("generating datapoints")
  trainData,trainY,trainGroups=generateData(b1,s1,trainSize,2,4,2,3,0,1,0)
- valData,valY,valGroups=generateData(b2,s2,testSize,2,4,1,2,0,1,0)
+ valData,valY,valGroups=generateData(b2,s2,valSize,2,4,1,2,0,1,0)
  print("training model")
 
- # model=createModel(trainData,trainY,valData,valY)
- # boxes,confidences=model.predict(valData[0])
- # drawLabels(valData[0],boxes,confidences)
- # groups=grouping(valData[0],boxes,confidences)
- groups=grouping(Image.fromarray(np.uint8(valData[0])),valY[0])
- print(groups)
- drawGroups(valData[0],boxes,groups)
+ username="Patrick"
+ if username="Michael":
+  model=createModel(trainData,trainY,valData,valY)
+  boxes,confidences=model.predict(valData[0])
+  drawLabels(valData[0],boxes,confidences).show()
+ elif username=="Patrick":
+  groups=grouping(Image.fromarray(np.uint8(valData[0])),valY[0])
+  print(groups)
+  drawLabelGroup(Image.fromarray(np.uint8(valData[0])),valY[0],groups).show()
 
 main()
