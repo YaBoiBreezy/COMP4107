@@ -8,8 +8,9 @@ The data generator calls are in main:
 Michael:
 In main there is trainSize and valSize. These control the number of datapoints in the
 training and validation datasets. I recommend something like 80 and 20.
-Note that having many data will result in it taking a while to generate, and taking
-lots of memory (~3MB/image). Also more data means more training per epoch, so keep
+Note that having many data's will result in it taking a while to generate each time you 
+run it, and taking lots of RAM (~3MB/image). 
+Also more data means more training per epoch, so keep
 that in mind. It will train on training data with validation accuracy listed too,
 then it will display the model operating on validation[0] for visual evaluation.
 The data generator call ends with 0,1,0). That means no rotation, yes resize, no flipping.
@@ -20,11 +21,13 @@ To make the CNN work properly, you must:
 HAVE padding="same" ON EVERY LAYER
 Don't touch the activations, input layer, or output layers
 Make sure that the product of all the strides is =64 (e.g. 1 layer with stride=16,
-another layer with stride=4, 16*4=64). This makes the input go from 1024x1024 to 
-64x64 for the output. Putting strides near the beginning will reduce the size sooner,
+another layer with stride=4, 1024/(16*4)=1024/64=16). This makes the input go from 1024x1024 to 
+16x16 for the output. Putting strides near the beginning will reduce the size sooner,
 leading to a faster overall model.
 make sure the layers are properly connected to each other
 I set epochs to 1, you will want to increase it
+Note you ar emainly going for validation loss minimization. The thing at the end
+that displays the output as an image with rectangles is extra.
 
 Patrick:
 Your job is easier, you are dealing with the grouper. You take an array groups
