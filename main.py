@@ -28,7 +28,7 @@ from scipy import cluster
 from scipy.cluster.hierarchy import dendrogram, linkage
 
 gridSize=16 #divide image into gridSize x gridSize quadrants
-quadSize=1024/gridSize #number of pixels in each quadrant
+quadSize=256/gridSize #number of pixels in each quadrant
 
 def imageSimilarity(i1,i2):
  #histogram looks at popularity of different colors, good but not perfect necessarily
@@ -41,7 +41,7 @@ def grouping(image,boxes,confidences):
  print(confidences.shape)
  images=[]
  threshold=0.5
- dim=64
+ dim=32
  #get image from box, for all boxes with confidence>threshold, reshape to dim x dim, add to images list
  for bigX in range(gridSize):
   for bigY in range(gridSize):
@@ -109,20 +109,20 @@ def customLoss2(y,yhat):
 # A function that implements a keras model with the sequential API
 def createModel(trainX, trainBox, trainConf, valX, valBox, valConf):
  print("creating model")
- input = keras.Input(shape=(1024, 1024, 3))
+ input = keras.Input(shape=(256, 256, 3))
  layer_2 = layers.Conv2D(32, kernel_size=3, padding="same", activation='sigmoid')(input)
  layer_3 = layers.Conv2D(32, kernel_size=32, padding="same", strides=16, activation='sigmoid')(layer_2)
  layer_4 = layers.Conv2D(32, kernel_size=32, padding="same", activation='sigmoid')(layer_3)
 
  
- final = layers.Conv2D(32, kernel_size=32, padding="same", strides=4, activation='sigmoid')(layer_4)
+ final = layers.Conv2D(32, kernel_size=32, padding="same", activation='sigmoid')(layer_4)
  output_1=layers.Conv2D(4, kernel_size=4, padding="same", activation='linear')(final) #bounding box, first value is ignored so loss works
  output_2=layers.Conv2D(1, kernel_size=4, padding="same", activation='sigmoid')(final) #confidence
 
  model = keras.Model(inputs=input, outputs=[output_1, output_2])
  model.compile(optimizer='adam', loss=[customLoss,customLoss2])
  print(model.summary())
- out = model.fit(x=trainX, y=[trainBox, trainConf], validation_data=[valX, [valBox, valConf]], epochs=1)
+ out = model.fit(x=trainX, y=[trainBox, trainConf], validation_data=[valX, [valBox, valConf]], epochs=10)
 
  return model
 
@@ -172,13 +172,13 @@ def generateData(backgroundList,spriteList,numInstances,minSpriteCount,maxSprite
    if rotation:
     tempSprite=tempSprite.rotate(random.randint(0,360), expand=1) #true makes it resize to fit new image. Uses nearest neighbor to keep pixel colors
    if sizing:
-    newSize=random.randint(64,256)
+    newSize=random.randint(16,128)
     tempSprite.thumbnail((newSize,newSize),PIL.Image.NEAREST)
    if flipping and random.randint(0,1)==0:
     tempSprite=tempSprite.transpose(Image.FLIP_LEFT_RIGHT)
    spriteWidth,spriteHeight=tempSprite.size
-   spriteX=random.randint(0,1024-spriteWidth)
-   spriteY=random.randint(0,1024-spriteHeight)
+   spriteX=random.randint(0,256-spriteWidth)
+   spriteY=random.randint(0,256-spriteHeight)
    midX=int(spriteX+(spriteWidth/2))
    midY=int(spriteY+(spriteHeight/2))
    bigX=int(midX / quadSize)
@@ -197,7 +197,7 @@ def generateData(backgroundList,spriteList,numInstances,minSpriteCount,maxSprite
   groups.append(newGroups)
   #compound=drawLabels(compound,np.array(newBoxes).reshape((gridSize**2*4)),np.array(newGroups))
   #compound.show()
- data=np.array(data).reshape((numInstances,1024,1024,3))
+ data=np.array(data).reshape((numInstances,256,256,3))
  boxes=np.array(boxes).astype(float)
  confidences=np.array(confidences).astype(float)
  groups=np.array(groups)
@@ -207,11 +207,11 @@ def generateData(backgroundList,spriteList,numInstances,minSpriteCount,maxSprite
 def readData():
  backgrounds = []
  for x in range(1,80):
-  backgrounds.append(Image.open("./backgrounds/background"+str(x)+".jpg").resize((1024,1024)))
+  backgrounds.append(Image.open("./backgrounds/background"+str(x)+".jpg").resize((256,256)))
  sprites = []
  for x in range(100):
   img=Image.open("./sprites/sprite"+str(x)+".png")
-  img.thumbnail((512,512),PIL.Image.LANCZOS)
+  img.thumbnail((128,128),PIL.Image.LANCZOS)
   sprites.append(img)
  return backgrounds, sprites
 
@@ -228,7 +228,7 @@ def main():
  valData,valBox,valConf,valGroups=generateData(b2,s2,valSize,2,4,1,2,0,1,0)
  print("training model")
 
- username="Patrick"
+ username="Michael"
  if username=="Michael":
   model=createModel(trainData,trainBox,trainConf,valData,valBox,valConf)
   boxes,confidences=model.predict(valData)

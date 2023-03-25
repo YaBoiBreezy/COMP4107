@@ -34,7 +34,7 @@ Your job is easier, you are dealing with the grouper. You take an array groups
 which contains bounding boxes for objects of interest and puts them into
 groups by deciding how similar they are to each other. I already have most
 of the code done, all you need to do is make imageSimilarity(i1,i2) which will take
-two 64x64x3 integer arrays and decide how similar they are. Note they may be scaled,
+two 32x32x3 integer arrays and decide how similar they are. Note they may be scaled,
 rotated, flipped, and have different backgrounds.
 The data generator call ends with 0,1,0). That means no rotation, yes resize, no flipping.
 Allow rotation and flipping once the model starts to be effective.
