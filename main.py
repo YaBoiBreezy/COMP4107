@@ -86,15 +86,9 @@ def grouping(image,boxes,confidences):
  return groups
 
 def customLoss(y,yhat):
- #print("SHAPES")
- #print(y.shape)
-# boxY=tf.slice(y,[0,0,0,1],[1,gridSize,gridSize,4]) #This should make it so we don't need the useless neurons in the output layer
- #print(boxY.shape)
- a = y[:,:,:,:]*y[:,:,:,:1] #boxY not y
- #print(a.shape)
- #print(yhat.shape)
+ boxY=tf.slice(y,[0,0,0,1],[1,gridSize,gridSize,4]) #This should make it so we don't need the useless neurons in the output layer
+ a = boxY[:,:,:,:]*y[:,:,:,:1]
  b = yhat[:,:,:,:]*y[:,:,:,:1]
- #print(b.shape)
  loss = keras.losses.MeanSquaredError()(a,b) #compare coordinates, but if y_actual[:,:,0]=0 then it should be 0 bc there is no object centered in that quadrant
  return loss
 
@@ -110,19 +104,21 @@ def customLoss2(y,yhat):
 def createModel(trainX, trainBox, trainConf, valX, valBox, valConf):
  print("creating model")
  input = keras.Input(shape=(256, 256, 3))
- layer_2 = layers.Conv2D(32, kernel_size=3, padding="same", activation='sigmoid')(input)
- layer_3 = layers.Conv2D(32, kernel_size=32, padding="same", strides=16, activation='sigmoid')(layer_2)
+ layer_2 = layers.Conv2D(32, kernel_size=3, padding="same", strides=2, activation='sigmoid')(input)
+ layer_3 = layers.Conv2D(32, kernel_size=32, padding="same", strides=2, activation='sigmoid')(layer_2)
  layer_4 = layers.Conv2D(32, kernel_size=32, padding="same", activation='sigmoid')(layer_3)
 
  
- final = layers.Conv2D(32, kernel_size=32, padding="same", activation='sigmoid')(layer_4)
- output_1=layers.Conv2D(4, kernel_size=4, padding="same", activation='linear')(final) #bounding box, first value is ignored so loss works
- output_2=layers.Conv2D(1, kernel_size=4, padding="same", activation='sigmoid')(final) #confidence
+ final = layers.Conv2D(32, kernel_size=32, padding="same", strides=2, activation='sigmoid')(layer_4)
+ output_1=layers.Conv2D(4, kernel_size=4, padding="same", strides=2, activation='linear')(final) #bounding box, first value is ignored so loss works
+ output_2=layers.Conv2D(1, kernel_size=4, padding="same", strides=2, activation='sigmoid')(final) #confidence
 
  model = keras.Model(inputs=input, outputs=[output_1, output_2])
  model.compile(optimizer='adam', loss=[customLoss,customLoss2])
  print(model.summary())
- out = model.fit(x=trainX, y=[trainBox, trainConf], validation_data=[valX, [valBox, valConf]], epochs=10)
+ trainBox=np.block([trainConf.reshape((trainConf.shape[0],gridSize,gridSize,1)),trainBox])
+ valBoxCompound=np.block([valConf.reshape((valConf.shape[0],gridSize,gridSize,1)),valBox])
+ out = model.fit(x=trainX, y=[trainBox, trainConf], validation_data=[valX, [valBoxCompound, valConf]], epochs=10)
 
  return model
 
@@ -233,7 +229,7 @@ def main():
   model=createModel(trainData,trainBox,trainConf,valData,valBox,valConf)
   boxes,confidences=model.predict(valData)
   groups=grouping(Image.fromarray(np.uint8(valData[0])),boxes[0],confidences[0])
-  drawLabelGroup(Image.fromarray(np.uint8(valData[0])),valBox[0],groups)
+  drawLabelGroup(Image.fromarray(np.uint8(valData[0])),boxes[0],groups)
  elif username=="Patrick":
   groups=grouping(Image.fromarray(np.uint8(valData[0])),valBox[0],valConf[0])
   drawLabelGroup(Image.fromarray(np.uint8(valData[0])),valBox[0],groups)
