@@ -26,7 +26,7 @@ another layer with stride=4, 1024/(16*4)=1024/64=16). This makes the input go fr
 leading to a faster overall model.
 make sure the layers are properly connected to each other
 I set epochs to 1, you will want to increase it
-Note you ar emainly going for validation loss minimization. The thing at the end
+Note you are mainly going for validation loss minimization. The thing at the end
 that displays the output as an image with rectangles is extra.
 
 Patrick:
