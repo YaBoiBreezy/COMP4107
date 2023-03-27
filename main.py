@@ -103,24 +103,26 @@ def customLoss2(y,yhat):
 
 # A function that implements a keras model with the sequential API
 def createModel(trainX, trainBox, trainConf, valX, valBox, valConf):
- print("creating model")
  input = keras.Input(shape=(256, 256, 3))
  layer_2 = layers.Conv2D(32, kernel_size=3, padding="same", strides=2, activation='sigmoid')(input)
  layer_3 = layers.Conv2D(32, kernel_size=32, padding="same", strides=2, activation='sigmoid')(layer_2)
- layer_4 = layers.Conv2D(32, kernel_size=32, padding="same", activation='sigmoid')(layer_3)
+ pool_layer = layers.MaxPooling2D(pool_size=(3, 3), strides=(1, 1), padding="same")(layer_3)
+ layer_4 = layers.Conv2D(32, kernel_size=32, padding="same", activation='sigmoid')(pool_layer)
+ layer_5 = layers.Conv2D(16, kernel_size=16, padding="same", activation='sigmoid')(layer_4)
+ layer_6 = layers.Conv2D(16, kernel_size=16, padding="same", activation='sigmoid')(layer_5)
 
- 
- final = layers.Conv2D(32, kernel_size=32, padding="same", strides=2, activation='sigmoid')(layer_4)
- output_1=layers.Conv2D(4, kernel_size=4, padding="same", strides=2, activation='linear')(final) #bounding box, first value is ignored so loss works
- output_2=layers.Conv2D(1, kernel_size=4, padding="same", strides=2, activation='sigmoid')(final) #confidence
+ final = layers.Conv2D(32, kernel_size=32, padding="same", strides=2, activation='sigmoid')(layer_6)
+ output_1 = layers.Conv2D(4, kernel_size=4, padding="same", strides=2, activation='linear')(
+  final)  # bounding box, first value is ignored so loss works
+ output_2 = layers.Conv2D(1, kernel_size=4, padding="same", strides=2, activation='sigmoid')(final)  # confidence
 
  model = keras.Model(inputs=input, outputs=[output_1, output_2])
- model.compile(optimizer='adam', loss=[customLoss,customLoss2])
+ model.compile(optimizer='adam', loss=[customLoss, customLoss2])
  print(model.summary())
- trainBox=np.block([trainConf.reshape((trainConf.shape[0],gridSize,gridSize,1)),trainBox])
- valBoxCompound=np.block([valConf.reshape((valConf.shape[0],gridSize,gridSize,1)),valBox])
- out = model.fit(x=trainX, y=[trainBox, trainConf], validation_data=[valX, [valBoxCompound, valConf]], epochs=10)
 
+ trainBox = np.block([trainConf.reshape((trainConf.shape[0], gridSize, gridSize, 1)), trainBox])
+ valBoxCompound = np.block([valConf.reshape((valConf.shape[0], gridSize, gridSize, 1)), valBox])
+ out = model.fit(x=trainX, y=[trainBox, trainConf], validation_data=[valX, [valBoxCompound, valConf]], epochs=10)
  return model
 
 
