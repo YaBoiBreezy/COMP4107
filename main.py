@@ -19,6 +19,7 @@ from keras.models import Sequential, Functional
 import pandas as pd
 import sklearn
 from sklearn.model_selection import train_test_split
+from sklearn import metrics
 from PIL import Image, ImageDraw
 import cv2
 import glob
@@ -34,7 +35,7 @@ def imageSimilarity(i1,i2):
  #histogram looks at popularity of different colors, good but not perfect necessarily
  #recommend compressing to dense vector representation  https://github.com/UKPLab/sentence-transformers
  #opencv feature matching   https://docs.opencv.org/4.x/dc/dc3/tutorial_py_matcher.html
- return random.random()*10
+ return random.random()
 
 def grouping(image,boxes,confidences):
  print(boxes.shape)
@@ -125,8 +126,8 @@ def createModel(trainX, trainBox, trainConf, valX, valBox, valConf):
 
 #gets color corresponding to group, but can also return black if too many groups
 def getColor(i):
- colordict=["none","red","blue","purple","orange","yellow"]
- if i>=0 and i<6:
+ colordict=["black","red","blue","purple","orange","yellow"]
+ if i>0 and i<6:
   return colordict[i]
  return "black"
 
@@ -159,7 +160,7 @@ def generateData(backgroundList,spriteList,numInstances,minSpriteCount,maxSprite
  for _ in range(numInstances):
   newBox=[[[0,0,0,0] for __ in range(gridSize)] for _ in range(gridSize)]
   newConf=[[0 for __ in range(gridSize)] for _ in range(gridSize)]
-  newGroups=[[0]*gridSize]*gridSize
+  newGroups=[[0 for __ in range(gridSize)] for _ in range(gridSize)]
   sprites=random.sample(spriteList,random.randint(minSpriteTypeCount,maxSpriteTypeCount))
   compound=random.choice(backgroundList).copy()
   for _ in range(random.randint(minSpriteCount,maxSpriteCount)):
@@ -211,9 +212,23 @@ def readData():
   sprites.append(img)
  return backgrounds, sprites
 
+#Takes group arrays g and g_hat, organizes into lists of image:group, and returns rand index similarity
+def groupAccuracy(g,gh):
+ a=[]
+ b=[]
+ threshold=0.5
+ for bigX in range(gridSize):
+  for bigY in range(gridSize):
+   if g[bigX][bigY]!=0:
+    a.append(g[bigX][bigY])
+    b.append(gh[bigX][bigY])
+ print(a)
+ print(b)
+ return metrics.rand_score(a,b)
+
 def main():
- trainSize=8
- valSize=2
+ trainSize=1
+ valSize=100
  print("reading data")
  backgrounds,sprites=readData()
  print("splitting data")
@@ -224,14 +239,18 @@ def main():
  valData,valBox,valConf,valGroups=generateData(b2,s2,valSize,2,4,1,2,0,1,0)
  print("training model")
 
- username="Michael"
+ username="Patrick"
  if username=="Michael":
   model=createModel(trainData,trainBox,trainConf,valData,valBox,valConf)
   boxes,confidences=model.predict(valData)
   groups=grouping(Image.fromarray(np.uint8(valData[0])),boxes[0],confidences[0])
   drawLabelGroup(Image.fromarray(np.uint8(valData[0])),boxes[0],groups)
  elif username=="Patrick":
-  groups=grouping(Image.fromarray(np.uint8(valData[0])),valBox[0],valConf[0])
-  drawLabelGroup(Image.fromarray(np.uint8(valData[0])),valBox[0],groups)
+  acc=0
+  for v in range(len(valBox)):
+   groups=grouping(Image.fromarray(np.uint8(valData[v])),valBox[v],valConf[v])
+   #drawLabelGroup(Image.fromarray(np.uint8(valData[0])),valBox[0],groups)
+   acc+=groupAccuracy(valGroups[v],groups)/100
+  print(acc)
 
 main()
