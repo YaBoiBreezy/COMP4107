@@ -25,6 +25,7 @@ import cv2
 import glob
 import random
 import scipy
+from numpy import asarray
 from scipy import cluster
 from scipy.cluster.hierarchy import dendrogram, linkage
 from skimage.metrics import structural_similarity as ssim
@@ -32,21 +33,13 @@ from skimage import io
 
 gridSize = 16  # divide image into gridSize x gridSize quadrants
 quadSize = 256 / gridSize  # number of pixels in each quadrant
+batch_size = 32
 
-
-def imageSimilarity(i1, i2):
-    i1_gray = i1.convert('L')
-    i2_gray = i2.convert('L')
-
-    # Convert images to numpy arrays
-    i1_arr = np.array(i1_gray)
-    i2_arr = np.array(i2_gray)
-
-    ssim_index = ssim(i1_arr, i2_arr, data_range=255)
-
-    similarity = (ssim_index + 1) / 2
-
-    return similarity
+def imageSimilarity(i1, i2, dim):
+    i1 = cv2.resize(i1, (dim, dim))
+    i2 = cv2.resize(i2, (dim, dim))
+    score = ssim(i1, i2, win_size=3, data_range=256,  multichannel=True)
+    return score
 
 
 def grouping(image, boxes, confidences):
@@ -67,6 +60,8 @@ def grouping(image, boxes, confidences):
                 h = int(box[3] / 2)
                 tmp = image.crop([x - w, y - h, x + w, y + h]).resize((dim, dim))
                 tmp = tmp.getdata()
+                # convert to numpy array
+                tmp = np.array(tmp).reshape(dim, dim, 3)
                 images.append(tmp)
     print(images)
 
@@ -77,12 +72,15 @@ def grouping(image, boxes, confidences):
     sim = []
     for i in range(len(images)):
         for j in range(i + 1, len(images)):
-            sim.append(imageSimilarity(images[i], images[j]))
+            sim.append(imageSimilarity(images[i], images[j], dim))
             print(f'similarities: {sim}')
+
+    sim = np.array(sim)
+    sim[sim < 0] = 0
 
     # group images into groups where the distance between groups is >=threshold
     linkage_matrix = linkage(sim, "single")
-    cut = cluster.hierarchy.cut_tree(linkage_matrix, height=[0.5])
+    cut = cluster.hierarchy.cut_tree(linkage_matrix, height=0.5)
     print(f'groups: {cut}')
 
     # construct group matrix
@@ -97,7 +95,6 @@ def grouping(image, boxes, confidences):
                 index += 1
 
     return groups
-
 
 def customLoss(y, yhat):
     boxY = tf.slice(y, [0, 0, 0, 1], [1, gridSize, gridSize,
@@ -211,7 +208,9 @@ def generateData(backgroundList, spriteList, numInstances, minSpriteCount, maxSp
             newBox[bigX][bigY] = [xOffset, yOffset, spriteWidth, spriteHeight]
             newConf[bigX][bigY] = 1
             newGroups[bigX][bigY] = spriteIndex + 1
-        data.append(compound.getdata())
+        # Downsample image by a factor of 4 before adding to data array
+        downsampled = compound.resize((256, 256), PIL.Image.NEAREST)
+        data.append(downsampled.getdata())
         boxes.append(newBox)
         confidences.append(newConf)
         groups.append(newGroups)
@@ -269,7 +268,7 @@ def main():
     if username == "Michael":
         model = createModel(trainData, trainBox, trainConf, valData, valBox, valConf)
         boxes, confidences = model.predict(valData)
-        groups = grouping(Image.fromarray(np.uint8(valData[0])), boxes[0], confidences[0])
+        groups = grouping(Image.fromarray(np.uint8(asarray(valData[0]))), boxes[0], confidences[0])
         drawLabelGroup(Image.fromarray(np.uint8(valData[0])), boxes[0], groups)
     elif username == "Patrick":
         acc = 0
