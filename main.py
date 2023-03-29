@@ -35,9 +35,10 @@ gridSize = 16  # divide image into gridSize x gridSize quadrants
 quadSize = 256 / gridSize  # number of pixels in each quadrant
 batch_size = 32
 
+#lower number means more similar
 def imageSimilarity(i1, i2, dim):
     score = ssim(i1, i2, win_size=3, data_range=256, multichannel=True)
-    return score
+    return 1-score
 
 
 def grouping(image, boxes, confidences):
@@ -61,22 +62,29 @@ def grouping(image, boxes, confidences):
                 # convert to numpy array
                 tmp = np.array(tmp).reshape(dim, dim, 3)
                 images.append(tmp)
-    print(images)
 
+    #handle if there is only one sprite found
     if len(images) < 2:
-        return np.array([[0] * gridSize] * gridSize)
+        groups=np.array([[0] * gridSize] * gridSize)
+        for bigX in range(gridSize):
+            for bigY in range(gridSize):
+                if confidences[bigX][bigY]> threshold:
+                    groups[bigX][bigY]=1
+                    return groups
 
     # construct distance matrix between each pair of images
     sim = []
     for i in range(len(images)):
         for j in range(i + 1, len(images)):
             sim.append(imageSimilarity(images[i], images[j], dim))
-            print(f'similarities: {sim}')
+    print(f'similarities: {sim}')
 
 
     # group images into groups where the distance between groups is >=threshold
-    linkage_matrix = linkage(sim - np.min(sim), "single")
+    # linkage_matrix = linkage(sim - np.min(sim), "single")
+    linkage_matrix = linkage(sim, "single")
     cut = cluster.hierarchy.cut_tree(linkage_matrix, height=0.5)
+    print(f'lm: {linkage_matrix}')
     print(f'groups: {cut}')
 
     # construct group matrix
@@ -106,7 +114,7 @@ def customLoss2(y, yhat):
     # print("SHAPES2")
     # print(y.shape)
     # print(yhat.shape)
-    loss = keras.losses.BinaryCrossentropy()(y,
+    loss = keras.losses.CategoricalCrossentropy()(y,
                                              yhat)  # compare prediction to actual for whether there is an item in this quad
     return loss
 
@@ -124,7 +132,7 @@ def createModel(trainX, trainBox, trainConf, valX, valBox, valConf):
     final = layers.Conv2D(32, kernel_size=32, padding="same", strides=2, activation='sigmoid')(layer_6)
     output_1 = layers.Conv2D(4, kernel_size=4, padding="same", strides=2, activation='linear')(
         final)  # bounding box, first value is ignored so loss works
-    output_2 = layers.Conv2D(1, kernel_size=4, padding="same", strides=2, activation='sigmoid')(final)  # confidence
+    output_2 = layers.Conv2D(1, kernel_size=4, padding="same", strides=2, activation='softmax')(final)  # confidence
 
     model = keras.Model(inputs=input, outputs=[output_1, output_2])
     model.compile(optimizer='adam', loss=[customLoss, customLoss2])
@@ -160,7 +168,7 @@ def drawLabelGroup(image, boxes, groups):
                 y = int(box[1] + bigY * quadSize)
                 w = int(box[2] / 2)  # halfWidth, halfHeight
                 h = int(box[3] / 2)
-                image2.rectangle([x - w, y - h, x + w, y + h], fill=None, outline=getColor(group), width=5)
+                image2.rectangle([x - w, y - h, x + w, y + h], fill=None, outline=getColor(group), width=4)
     image.show()
 
 
@@ -184,7 +192,7 @@ def generateData(backgroundList, spriteList, numInstances, minSpriteCount, maxSp
                 tempSprite = tempSprite.rotate(random.randint(0, 360),
                                                expand=1)  # true makes it resize to fit new image. Uses nearest neighbor to keep pixel colors
             if sizing:
-                newSize = random.randint(16, 128)
+                newSize = random.randint(32, 128)
                 tempSprite.thumbnail((newSize, newSize), PIL.Image.NEAREST)
             if flipping and random.randint(0, 1) == 0:
                 tempSprite = tempSprite.transpose(Image.FLIP_LEFT_RIGHT)
@@ -270,7 +278,7 @@ def main():
         acc = 0
         for v in range(len(valBox)):
             groups = grouping(Image.fromarray(np.uint8(valData[v])), valBox[v], valConf[v])
-            # drawLabelGroup(Image.fromarray(np.uint8(valData[0])),valBox[0],groups)
+            #drawLabelGroup(Image.fromarray(np.uint8(valData[v])),valBox[v],groups)
             acc += groupAccuracy(valGroups[v], groups) / 100
         print(acc)
 
