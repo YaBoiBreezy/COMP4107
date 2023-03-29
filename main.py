@@ -38,7 +38,7 @@ batch_size = 32
 def imageSimilarity(i1, i2, dim):
     i1 = cv2.resize(i1, (dim, dim))
     i2 = cv2.resize(i2, (dim, dim))
-    score = ssim(i1, i2, win_size=3, data_range=256,  multichannel=True)
+    score = ssim(i1, i2, win_size=3, data_range=256, multichannel=True)
     return score
 
 
@@ -75,11 +75,9 @@ def grouping(image, boxes, confidences):
             sim.append(imageSimilarity(images[i], images[j], dim))
             print(f'similarities: {sim}')
 
-    sim = np.array(sim)
-    sim[sim < 0] = 0
 
     # group images into groups where the distance between groups is >=threshold
-    linkage_matrix = linkage(sim, "single")
+    linkage_matrix = linkage(sim + np.abs(np.min(sim)), "single")
     cut = cluster.hierarchy.cut_tree(linkage_matrix, height=0.5)
     print(f'groups: {cut}')
 
