@@ -30,10 +30,14 @@ from scipy import cluster
 from scipy.cluster.hierarchy import dendrogram, linkage
 from skimage.metrics import structural_similarity as ssim
 from skimage import io
+from keras.activations import softmax
 
 gridSize = 16  # divide image into gridSize x gridSize quadrants
 quadSize = 256 / gridSize  # number of pixels in each quadrant
 batch_size = 32
+
+def softMaxAxis1(x):
+    return softmax(x,axis=1)
 
 #lower number means more similar
 def imageSimilarity(i1, i2, dim):
@@ -42,10 +46,8 @@ def imageSimilarity(i1, i2, dim):
 
 
 def grouping(image, boxes, confidences):
-    print(boxes.shape)
-    print(confidences.shape)
     images = []
-    threshold = 0.5
+    threshold = np.max(confidences) * 0.9 #Take all boxes with confidences within 10% of the highest one
     dim = 32
     # get image from box, for all boxes with confidence>threshold, reshape to dim x dim, add to images list
     for bigX in range(gridSize):
@@ -77,15 +79,15 @@ def grouping(image, boxes, confidences):
     for i in range(len(images)):
         for j in range(i + 1, len(images)):
             sim.append(imageSimilarity(images[i], images[j], dim))
-    print(f'similarities: {sim}')
+    #print(f'similarities: {sim}')
 
 
     # group images into groups where the distance between groups is >=threshold
     # linkage_matrix = linkage(sim - np.min(sim), "single")
     linkage_matrix = linkage(sim, "single")
     cut = cluster.hierarchy.cut_tree(linkage_matrix, height=0.5)
-    print(f'lm: {linkage_matrix}')
-    print(f'groups: {cut}')
+    #print(f'lm: {linkage_matrix}')
+    #print(f'groups: {cut}')
 
     # construct group matrix
     groups = np.array([[0] * gridSize] * gridSize)
@@ -105,17 +107,12 @@ def customLoss(y, yhat):
                                       4])  # This should make it so we don't need the useless neurons in the output layer
     a = boxY[:, :, :, :] * y[:, :, :, :1]
     b = yhat[:, :, :, :] * y[:, :, :, :1]
-    loss = keras.losses.MeanSquaredError()(a,
-                                           b)  # compare coordinates, but if y_actual[:,:,0]=0 then it should be 0 bc there is no object centered in that quadrant
+    loss = keras.losses.MeanSquaredError()(a,b)  # compare coordinates, but if y_actual[:,:,0]=0 then it should be 0 bc there is no object centered in that quadrant
     return loss
 
 
 def customLoss2(y, yhat):
-    # print("SHAPES2")
-    # print(y.shape)
-    # print(yhat.shape)
-    loss = keras.losses.CategoricalCrossentropy()(y,
-                                             yhat)  # compare prediction to actual for whether there is an item in this quad
+    loss = keras.losses.CategoricalCrossentropy()(y,yhat)  # compare prediction to actual for whether there is an item in this quad
     return loss
 
 
@@ -129,10 +126,10 @@ def createModel(trainX, trainBox, trainConf, valX, valBox, valConf):
     layer_5 = layers.Conv2D(16, kernel_size=16, padding="same", activation='sigmoid')(layer_4)
     layer_6 = layers.Conv2D(16, kernel_size=16, padding="same", activation='sigmoid')(layer_5)
 
-    final = layers.Conv2D(32, kernel_size=32, padding="same", strides=2, activation='sigmoid')(layer_6)
-    output_1 = layers.Conv2D(4, kernel_size=4, padding="same", strides=2, activation='linear')(
-        final)  # bounding box, first value is ignored so loss works
-    output_2 = layers.Conv2D(1, kernel_size=4, padding="same", strides=2, activation='softmax')(final)  # confidence
+    final1 = layers.Conv2D(32, kernel_size=32, padding="same", strides=2, activation='sigmoid')(layer_6)
+    final2 = layers.Conv2D(32, kernel_size=32, padding="same", strides=2, activation='sigmoid')(layer_6)
+    output_1 = layers.Conv2D(4, kernel_size=4, padding="same", strides=2, activation='linear')(final1)  # bounding box, first value is ignored so loss works
+    output_2 = layers.Conv2D(1, kernel_size=4, padding="same", strides=2, activation=softMaxAxis1)(final2)  # confidence
 
     model = keras.Model(inputs=input, outputs=[output_1, output_2])
     model.compile(optimizer='adam', loss=[customLoss, customLoss2])
@@ -140,7 +137,7 @@ def createModel(trainX, trainBox, trainConf, valX, valBox, valConf):
 
     trainBox = np.block([trainConf.reshape((trainConf.shape[0], gridSize, gridSize, 1)), trainBox])
     valBoxCompound = np.block([valConf.reshape((valConf.shape[0], gridSize, gridSize, 1)), valBox])
-    out = model.fit(x=trainX, y=[trainBox, trainConf], validation_data=[valX, [valBoxCompound, valConf]], epochs=10)
+    out = model.fit(x=trainX, y=[trainBox, trainConf], validation_data=[valX, [valBoxCompound, valConf]], epochs=1)
     return model
 
 
@@ -154,10 +151,6 @@ def getColor(i):
 
 # draws colored boxes on image
 def drawLabelGroup(image, boxes, groups):
-    print(boxes.shape)
-    print(groups.shape)
-    print(image)
-
     image2 = ImageDraw.Draw(image)
     for bigX in range(gridSize):
         for bigY in range(gridSize):
@@ -189,8 +182,7 @@ def generateData(backgroundList, spriteList, numInstances, minSpriteCount, maxSp
             spriteIndex = random.randint(0, len(sprites) - 1)
             tempSprite = sprites[spriteIndex].copy()
             if rotation:
-                tempSprite = tempSprite.rotate(random.randint(0, 360),
-                                               expand=1)  # true makes it resize to fit new image. Uses nearest neighbor to keep pixel colors
+                tempSprite = tempSprite.rotate(random.randint(0, 360),expand=1)  # true makes it resize to fit new image. Uses nearest neighbor to keep pixel colors
             if sizing:
                 newSize = random.randint(32, 128)
                 tempSprite.thumbnail((newSize, newSize), PIL.Image.NEAREST)
@@ -250,14 +242,12 @@ def groupAccuracy(g, gh):
             if g[bigX][bigY] != 0:
                 a.append(g[bigX][bigY])
                 b.append(gh[bigX][bigY])
-    print(a)
-    print(b)
     return metrics.rand_score(a, b)
 
 
 def main():
-    trainSize = 1
-    valSize = 100
+    trainSize = 80
+    valSize = 20
     print("reading data")
     backgrounds, sprites = readData()
     print("splitting data")
@@ -268,10 +258,11 @@ def main():
     valData, valBox, valConf, valGroups = generateData(b2, s2, valSize, 2, 4, 1, 2, 0, 1, 0)
     print("training model")
 
-    username = "Patrick"
+    username = "Michael"
     if username == "Michael":
         model = createModel(trainData, trainBox, trainConf, valData, valBox, valConf)
         boxes, confidences = model.predict(valData)
+        print(np.max(confidences[0]))
         groups = grouping(Image.fromarray(np.uint8(asarray(valData[0]))), boxes[0], confidences[0])
         drawLabelGroup(Image.fromarray(np.uint8(valData[0])), boxes[0], groups)
     elif username == "Patrick":
